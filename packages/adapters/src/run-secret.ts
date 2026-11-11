@@ -214,7 +214,8 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                 value.userId !== run.userId ||
                 value.botId !== run.botId ||
                 value.plaintext !== plaintext ||
-                value.remember !== !(runLogin || runCommand) ||
+                // A run-only value ignores what the client sent: the card decides it is never saved.
+                (!runCommand && value.remember !== !runLogin) ||
                 JSON.stringify(value.credential) !== JSON.stringify(ask.credential) ||
                 JSON.stringify(value.oneTimeCode) !== JSON.stringify(ask.oneTimeCode)
               )
