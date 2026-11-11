@@ -2,6 +2,7 @@ import path from "node:path";
 import type { AgentToolExecutionResult, ProcessEvent } from "@rakazo/adapter-kit";
 import { redactSecrets, sandboxCommandTimeoutMs } from "@rakazo/core";
 import { z } from "zod";
+import { commandCredentialRedactions, loadRunCommandEnvironment } from "./bot-secrets.js";
 import type { HostComputerEnvironment } from "./host-computer-protocol.js";
 import type {
   HostScreenAction,
@@ -11,6 +12,7 @@ import type {
 import { HOST_SCREEN_MAX_ACTIONS, hostScreenAction } from "./host-screen.js";
 import { nativeShellCommandArgv } from "./native-shell.js";
 import type { RunContext } from "./run-context.js";
+import { addRunSecrets } from "./run-context.js";
 import type { ToolCall } from "./run-tool-gate.js";
 import {
   isRunningShellCommand,
@@ -164,6 +166,15 @@ export async function userComputerShell(ctx: RunContext, call: ToolCall) {
         deviceId,
       ),
     );
+    // Only what was pasted for this run reaches the person's own computer, never saved vault
+    // values; each is hidden from the output first.
+    const runEnvironment = await loadRunCommandEnvironment(
+      ctx.deps.prisma,
+      ctx.deps.secretStore,
+      ctx.run,
+      runId,
+    );
+    addRunSecrets(ctx, commandCredentialRedactions(runEnvironment));
     const observed = await observeShellCommand(
       devices.request<ProcessEvent>(
         owner,
@@ -174,6 +185,7 @@ export async function userComputerShell(ctx: RunContext, call: ToolCall) {
           command: {
             argv: nativeShellCommandArgv(command, environment),
             cwd: userComputerCwd(environment, call.args.cwd),
+            ...(Object.keys(runEnvironment).length > 0 ? { env: runEnvironment } : {}),
             timeoutMs: sandboxCommandTimeoutMs(),
           },
         },

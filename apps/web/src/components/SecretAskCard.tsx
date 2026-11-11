@@ -12,6 +12,7 @@ import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AskBlock, AskCardProps } from "./AskCard";
 import { BuiCard } from "./ai/primitives";
+import { InlineLoginForm } from "./InlineLoginForm";
 import { siteHost, VaultTile } from "./vault/kinds";
 import { useVaultContacts } from "./vault/use-vault-contacts";
 import type { VaultEditorResult } from "./vault/VaultItemEditor";
@@ -82,16 +83,6 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
     return () => field.removeEventListener("beforeinput", keepLineBreaks);
   }, [commandInput, secretField]);
 
-  // A login, card or contact the bot is waiting on opens its form at once, so the person can
-  // type or paste it without finding the card first. Once per card: closing it leaves Add.
-  const [autoOpened, setAutoOpened] = useState(false);
-  const waitingOnForm = Boolean(form) && canAnswer && !ownerOnly && !answered;
-  useEffect(() => {
-    if (!waitingOnForm || autoOpened) return;
-    setAutoOpened(true);
-    setEditorOpen(true);
-  }, [waitingOnForm, autoOpened]);
-
   async function send(value: string, fields?: LoginFieldInput[], remember?: false) {
     setPending("submit");
     setError(null);
@@ -140,15 +131,17 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
     else await send(result.value ?? "");
   }
 
+  // Pasted for this run only: never saved, so the card says it was sent.
+  const runOnly = block.runOnly === true;
   const status = shownDismissed
     ? t`Dismissed`
-    : shownRemembered === false || codeInput
+    : shownRemembered === false || codeInput || runOnly
       ? t`Sent`
       : t`Saved`;
   const destination =
     block.credential?.auth.type === "command" ? (
       <span className="flex flex-wrap gap-x-2">
-        <span>{t`Command variable`}</span>
+        <span>{runOnly ? t`For this task only, not saved` : t`Command variable`}</span>
         <span className="font-mono">${commandVariableName(block.credential.name)}</span>
       </span>
     ) : codeHost ? (
@@ -218,7 +211,7 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
             {shownDismissed ? null : <Check aria-hidden className="size-4" />}
             {status}
           </div>
-        ) : form && canAnswer && !ownerOnly ? (
+        ) : form && form !== "login" && canAnswer && !ownerOnly ? (
           <Button
             variant="secondary"
             className="shrink-0 rounded-full"
@@ -240,6 +233,22 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
         <div className="mt-2.5 text-body font-medium text-muted-foreground">
           <Trans>No longer active</Trans>
         </div>
+      ) : null}
+      {!answered && canAnswer && !ownerOnly && form === "login" ? (
+        <InlineLoginForm
+          fields={loginCardFields(block.loginFields)}
+          remember={block.saveLogin ?? true}
+          disabled={submitting}
+          onDismiss={canDismiss ? () => void dismiss().catch(() => undefined) : undefined}
+          onSubmit={async (fields, remember) => {
+            try {
+              await send("", fields, remember ? undefined : false);
+            } catch {
+              // A secret answer's failure may echo the secret, so never show its message.
+              setError(t`Could not submit this answer`);
+            }
+          }}
+        />
       ) : null}
       {!answered && canAnswer && !ownerOnly && !form ? (
         <form
@@ -284,7 +293,7 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
                 (codeInput ? !normalizeOneTimeCode(answer) : answer.length === 0) || submitting
               }
             >
-              {codeInput ? (
+              {codeInput || runOnly ? (
                 pending === "submit" ? (
                   <Trans>Sending…</Trans>
                 ) : (

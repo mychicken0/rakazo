@@ -390,6 +390,7 @@ export const computerTools: ToolHandlers = {
       secretStore: deps.secretStore,
       scope: run,
       registerRedactions: (values) => addRunSecrets(ctx, values),
+      runId: ctx.runId,
     });
     ctx.computer.checkpoint.markDirty();
     const commandEvent = {

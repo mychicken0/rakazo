@@ -43,6 +43,7 @@ import {
   lockSpaceSettings,
   runCodeKind,
   runCodeSpentKind,
+  runCommandKind,
   runLoginKind,
   settingsTarget,
   withTransactionRetry,
@@ -231,6 +232,35 @@ export async function loadBotCommandEnvironment(
 }
 
 /**
+ * Values pasted for this run only (request_secret command with save false), as the variables
+ * its shell commands read. They are never in the vault and are dropped when the run ends.
+ */
+export async function loadRunCommandEnvironment(
+  prisma: PrismaClient,
+  secretStore: Pick<SecretStore, "load">,
+  scope: BotSecretScope,
+  runId: string,
+): Promise<Record<string, string>> {
+  const prefix = runCommandKind(runId, "");
+  const rows = await prisma.secret.findMany({
+    where: { userId: scope.userId, spaceId: scope.spaceId, kind: { startsWith: prefix } },
+    select: { id: true, kind: true, ciphertext: true },
+  });
+  const environment: Record<string, string> = {};
+  for (const row of rows) {
+    const variable = commandVariableName(row.kind.slice(prefix.length));
+    if (commandVariableProblem(variable)) continue;
+    try {
+      const value = await secretStore.load(row.ciphertext, row.id);
+      if (value && !value.includes("\0")) environment[variable] = value;
+    } catch {
+      // An unreadable value is left unset rather than failing the command.
+    }
+  }
+  return environment;
+}
+
+/**
  * The environment for one shell command: the command variables of the vault this Space uses,
  * loaded fresh. The values are handed to `registerRedactions` before this returns, so the
  * command's output is redacted.
@@ -240,14 +270,22 @@ export async function shellCommandEnvironment(input: {
   secretStore: Pick<SecretStore, "load">;
   scope: BotSecretScope;
   registerRedactions: (values: string[]) => void;
+  /** Adds the values pasted for this run only, over saved ones of the same name. */
+  runId?: string;
 }): Promise<{ env: Record<string, string>; unsetEnv: string[] }> {
   const unsetVariables = new Set<string>();
-  const botEnvironment = await loadBotCommandEnvironment(
-    input.prisma,
-    input.secretStore,
-    input.scope,
-    unsetVariables,
-  );
+  const botEnvironment = {
+    ...(await loadBotCommandEnvironment(
+      input.prisma,
+      input.secretStore,
+      input.scope,
+      unsetVariables,
+    )),
+    ...(input.runId
+      ? await loadRunCommandEnvironment(input.prisma, input.secretStore, input.scope, input.runId)
+      : {}),
+  };
+  for (const variable of Object.keys(botEnvironment)) unsetVariables.delete(variable);
   // Encoded forms too, as secret_request does, so an accidental `base64` or URL-encoding of a
   // value is still redacted from command output.
   input.registerRedactions(commandCredentialRedactions(botEnvironment));

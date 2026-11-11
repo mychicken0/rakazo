@@ -12,7 +12,11 @@ import type { UserDeviceGateway } from "./user-device-protocol.js";
 
 const environment = { platform: "darwin", home: "/Users/fake", shell: "/bin/zsh" };
 
-function setup(execute: (signal: AbortSignal) => AsyncIterable<unknown>, secrets: string[] = []) {
+function setup(
+  execute: (signal: AbortSignal) => AsyncIterable<unknown>,
+  secrets: string[] = [],
+  runValues: Record<string, string> = {},
+) {
   const controller = new AbortController();
   const requests: HostComputerRequest[] = [];
   const signals: AbortSignal[] = [];
@@ -34,8 +38,25 @@ function setup(execute: (signal: AbortSignal) => AsyncIterable<unknown>, secrets
       else yield* execute(signal) as AsyncIterable<T>;
     },
   };
+  // Values pasted for this run only, stored as the run's command variables.
+  const pasted = new Map<string, string>(Object.entries(runValues));
   const ctx = {
-    deps: { userDevices: gateway },
+    deps: {
+      userDevices: gateway,
+      prisma: {
+        secret: {
+          findMany: async () =>
+            [...pasted.keys()].map((name) => ({
+              id: name,
+              kind: `run-command:run-1:${name}`,
+              ciphertext: name,
+            })),
+        },
+      },
+      secretStore: { load: async (_ciphertext: string, id: string) => pasted.get(id) ?? "" },
+    },
+    run: { userId: "user-1", spaceId: "space-1", botId: "bot-1" },
+    state: { reply: { pendingProgress: "", redactor: { finish: () => "" } } },
     bot: { id: "bot-1" },
     runId: "run-1",
     source: { userComputerOwner: "user-1" },
@@ -155,6 +176,25 @@ describe("userComputerShell", () => {
         }),
       },
     ]);
+  });
+
+  it("hands a value pasted for this run to the command as its variable, hidden in the output", async () => {
+    const { ctx, call, requests } = setup(
+      async function* () {
+        yield { type: "stdout", data: "using fake-pasted-token\n" };
+        yield { type: "exit", code: 0 };
+      },
+      [],
+      { "deploy-token": "fake-pasted-token" },
+    );
+    const result = (await userComputerShell(ctx, call({ command: "deploy" }))) as {
+      stdout: string;
+    };
+    expect(requests.at(-1)).toMatchObject({
+      method: "execute",
+      command: { env: { DEPLOY_TOKEN: "fake-pasted-token" } },
+    });
+    expect(result.stdout).not.toContain("fake-pasted-token");
   });
 
   it("returns a quiet sign-in prompt early and keeps collecting its output", async () => {

@@ -268,47 +268,51 @@ async function typeIn(field: HTMLInputElement, value: string) {
   });
 }
 
-function hiddenSwitch(label: string) {
-  return [...(dialog()?.querySelectorAll('[data-testid="login-field"]') ?? [])]
-    .find((row) => row.querySelector("label")?.textContent === label)!
-    .querySelector<HTMLElement>('[data-testid="login-field-hidden"]')!;
+/** The login fields a login card shows right in the chat. */
+function loginForm() {
+  return container.querySelector<HTMLElement>('[data-testid="inline-login-form"]');
 }
 
-it("starts an ID and a phone visible and a PIN hidden, and the person can flip each", async () => {
+function cardInput(label: string) {
+  return loginForm()!.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+}
+
+function cardButton(name: string) {
+  return [...(loginForm()?.querySelectorAll("button") ?? [])].find(
+    (item) => item.textContent === name,
+  );
+}
+
+function cardSaveToVault() {
+  return loginForm()?.querySelector<HTMLElement>('[role="switch"]') ?? null;
+}
+
+it("asks for a login right in the card: an ID and a phone visible, a PIN hidden", async () => {
   const onAnswer = vi.fn(async () => undefined);
   await render(loginCard, undefined, onAnswer);
-  await openEditor();
 
+  expect(button("Add")).toBeUndefined();
   for (const [label, hidden] of [
     ["ID number", false],
     ["Phone number", false],
     ["PIN", true],
   ] as const) {
-    expect(loginInput(label).type).toBe(hidden ? "password" : "text");
-    expect(hiddenSwitch(label).getAttribute("aria-pressed")).toBe(String(hidden));
-    expect(hiddenSwitch(label).getAttribute("aria-label")).toBe("Hidden");
-    const description = hiddenSwitch(label).getAttribute("aria-describedby")!;
-    expect(document.getElementById(description)?.textContent).toBe(label);
+    expect(cardInput(label).type).toBe(hidden ? "password" : "text");
   }
-  await typeIn(loginInput("ID number"), " fake-id-123 ");
-  await typeIn(loginInput("Phone number"), "+1 555 0100");
-  expect(dialogButton("Save")!.disabled).toBe(true);
-  await typeIn(loginInput("PIN"), "0000");
-  await act(async () => hiddenSwitch("Phone number").click());
-  expect(loginInput("Phone number").type).toBe("password");
-  await act(async () => hiddenSwitch("PIN").click());
-  expect(loginInput("PIN").type).toBe("text");
-
-  await act(async () => dialogButton("Save")!.click());
+  await typeIn(cardInput("ID number"), " fake-id-123 ");
+  await typeIn(cardInput("Phone number"), "+1 555 0100");
+  expect(cardButton("Save")!.disabled).toBe(true);
+  await typeIn(cardInput("PIN"), "0000");
+  await act(async () => cardButton("Save")!.click());
 
   expect(onAnswer).toHaveBeenCalledWith("", [
     { label: "ID number", value: " fake-id-123 ", hidden: false },
-    { label: "Phone number", value: "+1 555 0100", hidden: true },
-    { label: "PIN", value: "0000", hidden: false },
+    { label: "Phone number", value: "+1 555 0100", hidden: false },
+    { label: "PIN", value: "0000", hidden: true },
   ]);
   expect(container.textContent).toContain("Saved");
   expect(document.body.textContent).not.toContain("fake-id-123");
-  expect(dialog()).toBeNull();
+  expect(loginForm()).toBeNull();
 });
 
 it("says the bot's browser stays signed in for everyone in a shared space", async () => {
@@ -321,11 +325,8 @@ it("says the bot's browser stays signed in for everyone in a shared space", asyn
 
 it("starts every field hidden when no label names an identifier", async () => {
   await render({ ...loginCard, loginFields: ["Memorable word", "Card number"] });
-  await openEditor();
-
   for (const label of ["Memorable word", "Card number"]) {
-    expect(loginInput(label).type).toBe("password");
-    expect(hiddenSwitch(label).getAttribute("aria-pressed")).toBe("true");
+    expect(cardInput(label).type).toBe("password");
   }
 });
 
@@ -333,20 +334,15 @@ it("asks for a visible username and a hidden password when the bot names no fiel
   const onAnswer = vi.fn(async () => undefined);
   const { loginFields: _, ...defaultLogin } = loginCard;
   await render(defaultLogin, undefined, onAnswer);
-  await openEditor();
 
   expect(
-    [...dialog()!.querySelectorAll('[data-testid="login-field"] label')].map(
-      (label) => label.textContent,
-    ),
+    [...loginForm()!.querySelectorAll("input[aria-label]")].map((input) => input.ariaLabel),
   ).toEqual(["Username", "Password"]);
-  expect(loginInput("Username").type).toBe("text");
-  expect(hiddenSwitch("Username").getAttribute("aria-pressed")).toBe("false");
-  expect(loginInput("Password").type).toBe("password");
-  expect(hiddenSwitch("Password").getAttribute("aria-pressed")).toBe("true");
-  await typeIn(loginInput("Username"), "fake-user");
-  await typeIn(loginInput("Password"), "fake-password");
-  await act(async () => dialogButton("Save")!.click());
+  expect(cardInput("Username").type).toBe("text");
+  expect(cardInput("Password").type).toBe("password");
+  await typeIn(cardInput("Username"), "fake-user");
+  await typeIn(cardInput("Password"), "fake-password");
+  await act(async () => cardButton("Save")!.click());
 
   expect(onAnswer).toHaveBeenCalledWith("", [
     { label: "Username", value: "fake-user", hidden: false },
@@ -552,10 +548,33 @@ it.each([
     expect(container.textContent).not.toContain("No longer active");
 
     await render(true);
-    if (credential.auth.type === "login") expect(button("Add")).toBeDefined();
-    else expect(button("Save")).toBeDefined();
+    expect(button("Save")).toBeDefined();
   },
 );
+
+it("takes a value pasted for this task only and reads Sent, not Saved", async () => {
+  const onAnswer = vi.fn(async () => undefined);
+  await render(
+    {
+      kind: "ask",
+      text: "Paste the deploy token",
+      input: "secret",
+      purpose: "api_key",
+      credential: { name: "deploy-token", origin: "", auth: { type: "command" } },
+      runOnly: true,
+      status: "pending",
+    },
+    undefined,
+    onAnswer,
+  );
+  expect(container.textContent).toContain("For this task only, not saved");
+  const field = container.querySelector<HTMLInputElement>('input[type="password"]')!;
+  await typeIn(field, "fake-token");
+  await act(async () => button("Continue")!.click());
+  expect(onAnswer).toHaveBeenCalledWith("fake-token");
+  expect(container.textContent).toContain("Sent");
+  expect(container.textContent).not.toContain("Saved");
+});
 
 it("keeps a connector code card open to others in the chat, without Dismiss", async () => {
   await act(async () =>
@@ -574,24 +593,14 @@ it("keeps a connector code card open to others in the chat, without Dismiss", as
   expect(button("Dismiss")).toBeUndefined();
 });
 
-function saveToVault() {
-  return dialog()?.querySelector<HTMLElement>('[role="switch"]') ?? null;
-}
-
-it("saves a login by default, with Save to Vault on and named by its label", async () => {
+it("saves a login by default, with Save to Vault on", async () => {
   const onAnswer = vi.fn(async () => undefined);
   await render(loginCard, undefined, onAnswer);
-  await openEditor();
-  const toggle = saveToVault()!;
-  expect(toggle.getAttribute("aria-checked")).toBe("true");
-  const label = [...dialog()!.querySelectorAll("label")].find(
-    (item) => item.textContent === "Save to Vault",
-  )!;
-  expect(toggle.parentElement?.contains(label) || label.htmlFor !== "").toBe(true);
-  await typeIn(loginInput("ID number"), "fake-id-123");
-  await typeIn(loginInput("Phone number"), "+1 555 0100");
-  await typeIn(loginInput("PIN"), "1234");
-  await act(async () => dialogButton("Save")!.click());
+  expect(cardSaveToVault()!.getAttribute("aria-checked")).toBe("true");
+  await typeIn(cardInput("ID number"), "fake-id-123");
+  await typeIn(cardInput("Phone number"), "+1 555 0100");
+  await typeIn(cardInput("PIN"), "1234");
+  await act(async () => cardButton("Save")!.click());
 
   // Nothing extra is sent, so the answer is saved as it always was.
   expect(onAnswer).toHaveBeenCalledWith("", [
@@ -605,16 +614,15 @@ it("saves a login by default, with Save to Vault on and named by its label", asy
 it("sends a login for this run only when Save to Vault is off, and reads Sent", async () => {
   const onAnswer = vi.fn(async () => undefined);
   await render(loginCard, undefined, onAnswer);
-  await openEditor();
-  await typeIn(loginInput("ID number"), "fake-id-123");
-  await act(async () => saveToVault()!.click());
-  expect(saveToVault()!.getAttribute("aria-checked")).toBe("false");
+  await typeIn(cardInput("ID number"), "fake-id-123");
+  await act(async () => cardSaveToVault()!.click());
+  expect(cardSaveToVault()!.getAttribute("aria-checked")).toBe("false");
   // Turning it off keeps what was typed and says the login is only sent on.
-  expect(loginInput("ID number").value).toBe("fake-id-123");
-  expect(dialogButton("Save")).toBeUndefined();
-  await typeIn(loginInput("Phone number"), "+1 555 0100");
-  await typeIn(loginInput("PIN"), "1234");
-  await act(async () => dialogButton("Continue")!.click());
+  expect(cardInput("ID number").value).toBe("fake-id-123");
+  expect(cardButton("Save")).toBeUndefined();
+  await typeIn(cardInput("Phone number"), "+1 555 0100");
+  await typeIn(cardInput("PIN"), "1234");
+  await act(async () => cardButton("Continue")!.click());
 
   expect(onAnswer).toHaveBeenCalledWith(
     "",
@@ -629,23 +637,20 @@ it("sends a login for this run only when Save to Vault is off, and reads Sent", 
   expect(container.textContent).not.toContain("Saved");
 });
 
-it("opens the login form as soon as the bot asks, with Save to Vault as it suggested", async () => {
+it("starts a one-off login with Save to Vault off and takes a pasted username and password", async () => {
   const onAnswer = vi.fn(async () => undefined);
   const { loginFields: _, ...defaultLogin } = loginCard;
   await render({ ...defaultLogin, saveLogin: false }, undefined, onAnswer);
 
-  // No Add click: the form is already up, and this one-off login starts as use-once.
-  expect(dialog()).not.toBeNull();
-  expect(saveToVault()!.getAttribute("aria-checked")).toBe("false");
-  const username = loginInput("Username");
+  expect(cardSaveToVault()!.getAttribute("aria-checked")).toBe("false");
   const pasted = new Event("paste", { bubbles: true, cancelable: true }) as Event & {
     clipboardData: { getData: (type: string) => string };
   };
   pasted.clipboardData = { getData: () => "fake-user\nfake-password\n" };
-  await act(async () => username.dispatchEvent(pasted));
-  expect(loginInput("Username").value).toBe("fake-user");
-  expect(loginInput("Password").value).toBe("fake-password");
-  await act(async () => dialogButton("Continue")!.click());
+  await act(async () => cardInput("Username").dispatchEvent(pasted));
+  expect(cardInput("Username").value).toBe("fake-user");
+  expect(cardInput("Password").value).toBe("fake-password");
+  await act(async () => cardButton("Continue")!.click());
 
   expect(onAnswer).toHaveBeenCalledWith(
     "",
@@ -661,28 +666,26 @@ it("dismisses a login card from its form, sending nothing typed", async () => {
   const onAnswer = vi.fn(async () => undefined);
   const onDismiss = vi.fn(async () => undefined);
   await render(loginCard, onDismiss, onAnswer);
-  await openEditor();
-  await typeIn(loginInput("PIN"), "1234");
-  await act(async () => dialogButton("Dismiss")!.click());
+  await typeIn(cardInput("PIN"), "1234");
+  await act(async () => cardButton("Dismiss")!.click());
   expect(onDismiss).toHaveBeenCalledTimes(1);
   expect(onAnswer).not.toHaveBeenCalled();
-  expect(dialog()).toBeNull();
+  expect(loginForm()).toBeNull();
   expect(container.textContent).toContain("Dismissed");
 });
 
-it("keeps the form open with a generic error when a login fails to save", async () => {
+it("shows a generic error when a login fails to save, and keeps nothing typed", async () => {
   await render(loginCard, undefined, async () => {
     throw new Error("server echoed fake-id-123");
   });
-  await openEditor();
-  await typeIn(loginInput("ID number"), "fake-id-123");
-  await typeIn(loginInput("Phone number"), "+1 555 0100");
-  await typeIn(loginInput("PIN"), "1234");
-  await act(async () => dialogButton("Save")!.click());
-  expect(dialog()?.textContent).toContain("Could not submit this answer");
+  await typeIn(cardInput("ID number"), "fake-id-123");
+  await typeIn(cardInput("Phone number"), "+1 555 0100");
+  await typeIn(cardInput("PIN"), "1234");
+  await act(async () => cardButton("Save")!.click());
+  expect(container.textContent).toContain("Could not submit this answer");
   expect(document.body.textContent).not.toContain("server echoed");
   // The values are cleared as the save starts, so nothing typed is left behind.
-  expect(loginInput("PIN").value).toBe("");
+  expect(cardInput("PIN").value).toBe("");
 });
 
 const cardAsk: AskBlock = {

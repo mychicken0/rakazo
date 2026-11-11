@@ -12,6 +12,11 @@ export function runLoginKind(runId: string, name: string): string {
   return `run-login:${runId}:${name}`;
 }
 
+/** A value pasted for this run only (save false): exported to its shell commands, then dropped. */
+export function runCommandKind(runId: string, name: string): string {
+  return `run-command:${runId}:${name}`;
+}
+
 /** A texted or emailed code answered in chat, kept until it is typed into the page or the run ends. */
 export function runCodeKind(runId: string): string {
   return `run-code:${runId}`;
@@ -45,6 +50,11 @@ export async function deleteRunSecretsInTransaction(
           userId: run.userId,
           spaceId: run.spaceId,
           kind: { startsWith: runLoginKind(run.id, "") },
+        },
+        {
+          userId: run.userId,
+          spaceId: run.spaceId,
+          kind: { startsWith: runCommandKind(run.id, "") },
         },
       ]),
     },

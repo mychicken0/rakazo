@@ -9,7 +9,13 @@ import {
 } from "@rakazo/contracts";
 import { isSecretAskBlock } from "@rakazo/core";
 import type { PrismaClient, RunSecretWriter } from "@rakazo/db";
-import { runCodeKind, runLoginKind, runSecretKind, withTransactionRetry } from "@rakazo/db";
+import {
+  runCodeKind,
+  runCommandKind,
+  runLoginKind,
+  runSecretKind,
+  withTransactionRetry,
+} from "@rakazo/db";
 import type { ApprovalPausedToolResult } from "./approval-effect.js";
 import { internalTerminatingResult, resolveDuplicateEffectGate } from "./approval-effect.js";
 import { encodeRunCode, encodeRunLogin, prepareBotSecret } from "./bot-secrets.js";
@@ -173,8 +179,12 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
           ask.credential?.auth.type === "login" && input.remember === false
             ? ask.credential
             : undefined;
+        // A value the bot asked for once stays with this run whatever the client sent, so an
+        // app that cannot say "don't save" still never puts it in the vault.
+        const runCommand =
+          ask.credential?.auth.type === "command" && ask.runOnly ? ask.credential : undefined;
         const prepared =
-          ask.credential && !runLogin
+          ask.credential && !runLogin && !runCommand
             ? await prepareBotSecret({
                 prisma,
                 secretStore,
@@ -204,7 +214,7 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                 value.userId !== run.userId ||
                 value.botId !== run.botId ||
                 value.plaintext !== plaintext ||
-                value.remember !== !runLogin ||
+                value.remember !== !(runLogin || runCommand) ||
                 JSON.stringify(value.credential) !== JSON.stringify(ask.credential) ||
                 JSON.stringify(value.oneTimeCode) !== JSON.stringify(ask.oneTimeCode)
               )
@@ -216,6 +226,16 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                     userId: run.userId,
                     spaceId: input.spaceId,
                     kind: runLoginKind(input.runId, ask.credential.name),
+                  },
+                });
+              }
+              // Pasting it again replaces the value this run holds under that name.
+              if (runCommand) {
+                await value.tx.secret.deleteMany({
+                  where: {
+                    userId: run.userId,
+                    spaceId: input.spaceId,
+                    kind: runCommandKind(input.runId, runCommand.name),
                   },
                 });
               }
@@ -240,7 +260,9 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                       ? runCodeKind(input.runId)
                       : runLogin
                         ? runLoginKind(input.runId, runLogin.name)
-                        : runSecretKind(input.runId),
+                        : runCommand
+                          ? runCommandKind(input.runId, runCommand.name)
+                          : runSecretKind(input.runId),
                     ciphertext: prepared.ciphertext,
                   },
                 });

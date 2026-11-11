@@ -1,6 +1,12 @@
-import { BotSecretName, botSecretSubmissionSchema } from "@rakazo/contracts";
+import { BotSecretName, botSecretSubmissionSchema, commandVariableName } from "@rakazo/contracts";
 import { createStreamingRedactor, displayName } from "@rakazo/core";
-import { runCodeKind, runLoginKind, runSecretKind, spaceIsShared } from "@rakazo/db";
+import {
+  runCodeKind,
+  runCommandKind,
+  runLoginKind,
+  runSecretKind,
+  spaceIsShared,
+} from "@rakazo/db";
 import {
   completeExternalEffect,
   replaceCompletedExternalEffectResult,
@@ -124,6 +130,25 @@ export const secretTools: ToolHandlers = {
           ? await findRunLogin(deps.prisma, deps.secretStore, run, runId, destination.name)
           : undefined;
       const held = runLogin?.origin === destination.origin ? runLogin : undefined;
+      // A value pasted for this run only: exported to its shell commands, never saved.
+      const runOnly = destination.auth.type === "command" && args.save === false;
+      if (runOnly) {
+        const pasted = await deps.prisma.secret.count({
+          where: {
+            userId: run.userId,
+            spaceId: run.spaceId,
+            kind: runCommandKind(runId, destination.name),
+          },
+        });
+        if (pasted > 0) {
+          return call.finish({
+            saved: false,
+            name: destination.name,
+            variable: `$${commandVariableName(destination.name)}`,
+            note: "The user pasted it for this run only. Your shell commands, on your computer and the user's, read it from that variable; you never see it. It was not saved and is gone when this run ends.",
+          });
+        }
+      }
       if (existing && !sameSecretDestination(existing, destination)) {
         if (!canReplaceLoginSite(existing, destination)) {
           return call.finish({
@@ -161,7 +186,7 @@ export const secretTools: ToolHandlers = {
       ) {
         return call.finish(known ?? { error: "The saved credential is no longer available." });
       }
-      if (known && args.replace !== true) return call.finish(known);
+      if (known && args.replace !== true && !runOnly) return call.finish(known);
       // A login saved for this exact site under another name is the one to fill.
       const siteLogin =
         !known && destination.auth.type === "login" && args.replace !== true
@@ -363,6 +388,9 @@ export const secretTools: ToolHandlers = {
           ...(loginFields?.labels ? { loginFields: loginFields.labels } : {}),
           ...(destination?.auth.type === "login" && typeof args.save === "boolean"
             ? { saveLogin: args.save }
+            : {}),
+          ...(destination?.auth.type === "command" && args.save === false
+            ? { runOnly: true as const }
             : {}),
           ...(loginFields && (await spaceIsShared(deps.prisma, run.spaceId))
             ? { sharedBrowser: true as const }

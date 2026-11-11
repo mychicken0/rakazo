@@ -163,6 +163,8 @@ export const MessageBlock = z.discriminatedUnion("kind", [
     loginFields: LoginFieldLabels.optional(),
     /** On a login card, whether Save to Vault starts on: the bot's suggestion, not a choice. */
     saveLogin: z.boolean().optional(),
+    /** On a command variable card: the value is for this run's shell commands only, never saved. */
+    runOnly: z.literal(true).optional(),
     /** On a login card in a shared Space: the site stays signed in for everyone in it. */
     sharedBrowser: z.literal(true).optional(),
     /** On a fetch approval, the site an "always" answer allows. */
