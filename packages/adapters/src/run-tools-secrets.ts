@@ -131,7 +131,7 @@ export const secretTools: ToolHandlers = {
           : undefined;
       const held = runLogin?.origin === destination.origin ? runLogin : undefined;
       // A value pasted for this run only: exported to its shell commands, never saved.
-      const runOnly = destination.auth.type === "command" && args.save === false;
+      const runOnly = destination.auth.type === "command" && args.save !== true;
       if (runOnly) {
         const pasted = await deps.prisma.secret.count({
           where: {
@@ -389,7 +389,7 @@ export const secretTools: ToolHandlers = {
           ...(destination?.auth.type === "login" && typeof args.save === "boolean"
             ? { saveLogin: args.save }
             : {}),
-          ...(destination?.auth.type === "command" && args.save === false
+          ...(destination?.auth.type === "command" && args.save !== true
             ? { runOnly: true as const }
             : {}),
           ...(loginFields && (await spaceIsShared(deps.prisma, run.spaceId))

@@ -139,7 +139,14 @@ async function runTool(
     );
   const vault = options.vault ?? (options.saved ? [options.saved] : []);
   const inVault = (row: Record<string, unknown>, where: Record<string, unknown>) =>
-    (["name", "origin"] as const).every((key) => !(key in where) || row[key] === where[key]);
+    (["name", "origin"] as const).every((key) => {
+      if (!(key in where)) return true;
+      const wanted = where[key] as unknown;
+      // A site's login is looked up under its origin and its www twin.
+      if (wanted && typeof wanted === "object" && "in" in wanted)
+        return (wanted as { in: unknown[] }).in.includes(row[key]);
+      return row[key] === wanted;
+    });
   const prisma = recordingPrisma(
     {
       spaceMember: { findUnique: async () => ({ id: "member-1" }) },
@@ -355,9 +362,14 @@ describe("request_secret for a website login", () => {
       expect(toolResults).toMatchObject(paused);
     });
 
+    it("reuses a login saved for the same host with www., where sites redirect", async () => {
+      const www = { ...savedLogin, origin: "https://www.login.example.test" };
+      const { toolResults } = await runTool(requestLogin(), { vault: [www] });
+      expect(toolResults).toMatchObject([{ saved: true, name: savedLogin.name }]);
+    });
+
     it.each([
       ["another site", "https://other.example.test"],
-      ["the same host with www.", "https://www.login.example.test"],
       ["the same host on another port", "https://login.example.test:8443"],
     ])("asks when the login is saved for %s", async (_case, origin) => {
       const { toolResults } = await runTool(requestLogin(), {

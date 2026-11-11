@@ -474,6 +474,7 @@ describe("parametersFor OpenAI wire fidelity", () => {
       "oneTimeCode",
       "purpose",
       "replace",
+      "save",
     ]);
     expect(wire.required).toEqual(["label", "purpose"]);
     expect(wire.additionalProperties).toBe(false);
