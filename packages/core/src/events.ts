@@ -303,9 +303,9 @@ function clampRunFailure(message: string): string {
 
 export type LiveMessageUpdate =
   | { type: "progress"; payload: Record<string, unknown> | undefined }
-  | { type: "tool"; name: string; executionId?: string; detail?: string }
+  | { type: "tool"; name: string; executionId?: string; detail?: ToolCallDetail }
   /** A call finished: its step shows the input and output. */
-  | { type: "tool_result"; executionId: string; detail: string };
+  | { type: "tool_result"; executionId: string; detail: ToolCallDetail };
 
 export function reduceLiveMessageBlocks(
   current: readonly MessageBlock[],
@@ -381,13 +381,13 @@ export function toolCallUpdate(payload: Record<string, unknown>): LiveMessageUpd
     type: "tool",
     name: String(payload.name ?? ""),
     ...(typeof payload.executionId === "string" ? { executionId: payload.executionId } : {}),
-    ...(typeof payload.detail === "string" ? { detail: payload.detail } : {}),
+    ...(isToolCallDetail(payload.detail) ? { detail: payload.detail } : {}),
   };
 }
 
 /** The live update for an `agent.tool.completed` payload, when it carries the call's detail. */
 export function toolResultUpdate(payload: Record<string, unknown>): LiveMessageUpdate | undefined {
-  return typeof payload.executionId === "string" && typeof payload.detail === "string"
+  return typeof payload.executionId === "string" && isToolCallDetail(payload.detail)
     ? { type: "tool_result", executionId: payload.executionId, detail: payload.detail }
     : undefined;
 }
@@ -481,22 +481,35 @@ export function appendToolStep(
   return [...steps, { label, count: 1, ...(executionId ? { executionIds: [executionId] } : {}) }];
 }
 
+export type ToolCallDetail = NonNullable<ToolStep["calls"]>[number];
+
+function isToolCallDetail(value: unknown): value is ToolCallDetail {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const { input, output, error, durationMs } = value as Record<string, unknown>;
+  return (
+    (input === undefined || typeof input === "string") &&
+    (output === undefined || typeof output === "string") &&
+    (error === undefined || error === true) &&
+    (durationMs === undefined || typeof durationMs === "number")
+  );
+}
+
 /** Puts a call's input and output on the step that shows it. Unknown calls change nothing. */
 export function withToolCallDetail(
   segments: readonly MessageBlock[],
   executionId: string,
-  detail: string,
+  detail: ToolCallDetail,
 ): MessageBlock[] {
   let changed = false;
   const next = segments.map((block) => {
     if (block.kind !== "steps") return block;
     const steps = block.steps.map((step) => {
       const index = step.executionIds?.indexOf(executionId) ?? -1;
-      if (index < 0 || step.details?.[index] === detail) return step;
-      const details = Array.from({ length: step.count }, (_, i) => step.details?.[i] ?? "");
-      details[index] = detail;
+      if (index < 0 || JSON.stringify(step.calls?.[index]) === JSON.stringify(detail)) return step;
+      const calls = Array.from({ length: step.count }, (_, i) => step.calls?.[i] ?? {});
+      calls[index] = detail;
       changed = true;
-      return { ...step, details };
+      return { ...step, calls };
     });
     return changed ? { ...block, steps } : block;
   });
@@ -508,7 +521,7 @@ export function appendThinkingStep(
   segments: readonly MessageBlock[],
   text: string,
 ): MessageBlock[] {
-  const step: ToolStep = { label: "Thinking", count: 1, thinking: true, details: [text] };
+  const step: ToolStep = { label: "Thinking", count: 1, thinking: true, text };
   const last = segments.at(-1);
   if (last?.kind === "steps") {
     return [...segments.slice(0, -1), { kind: "steps", steps: [...last.steps, step] }];
@@ -516,40 +529,61 @@ export function appendThinkingStep(
   return [...segments, { kind: "steps", steps: [step] }];
 }
 
-const TOOL_DETAIL_INPUT_MAX = 2_000;
-const TOOL_DETAIL_OUTPUT_MAX = 3_000;
+const TOOL_INPUT_VALUE_MAX = 1_500;
+const TOOL_INPUT_MAX = 4_000;
+const TOOL_OUTPUT_MAX = 6_000;
 
-function clipDetail(text: string, max: number): string {
-  return text.length > max
-    ? `${text.slice(0, max)}\n… (${text.length - max} more characters)`
-    : text;
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}… (${text.length - max} more characters)` : text;
 }
 
-/** A call's input and, once it finished, its output, as plain text for the step. */
-export function formatToolCallDetail(call: {
+/** Arguments with long text values shortened, so the JSON stays readable and valid. */
+function shortenValues(value: unknown, depth = 0): unknown {
+  if (typeof value === "string") return clip(value, TOOL_INPUT_VALUE_MAX);
+  if (!value || typeof value !== "object" || depth > 6) return value;
+  if (Array.isArray(value)) return value.map((item) => shortenValues(item, depth + 1));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, shortenValues(item, depth + 1)]),
+  );
+}
+
+/** A call's input and, once it finished, its output, for its step. */
+export function toolCallDetail(call: {
   input?: unknown;
   output?: string;
   error?: string;
   durationMs?: number;
-}): string | undefined {
-  const parts: string[] = [];
+}): ToolCallDetail | undefined {
+  let input: string | undefined;
   if (call.input !== undefined) {
-    let input: string;
     try {
-      input = JSON.stringify(call.input, null, 2) ?? String(call.input);
+      input = JSON.stringify(shortenValues(call.input), null, 2);
     } catch {
       input = String(call.input);
     }
-    parts.push(`input:\n${clipDetail(input, TOOL_DETAIL_INPUT_MAX)}`);
   }
-  const result = call.error ?? call.output;
-  if (result !== undefined) {
-    const took = call.durationMs === undefined ? "" : ` (${Math.round(call.durationMs)} ms)`;
-    parts.push(
-      `${call.error === undefined ? "output" : "error"}${took}:\n${clipDetail(result, TOOL_DETAIL_OUTPUT_MAX)}`,
-    );
-  }
-  return parts.length > 0 ? parts.join("\n\n") : undefined;
+  const output = call.error ?? call.output;
+  const detail: ToolCallDetail = {
+    ...(input === undefined ? {} : { input: clip(input, TOOL_INPUT_MAX) }),
+    ...(output === undefined ? {} : { output: clip(output, TOOL_OUTPUT_MAX) }),
+    ...(call.error === undefined ? {} : { error: true as const }),
+    ...(call.durationMs === undefined
+      ? {}
+      : { durationMs: Math.max(0, Math.round(call.durationMs)) }),
+  };
+  return Object.keys(detail).length > 0 ? detail : undefined;
+}
+
+/** A call's detail with known secrets hidden. */
+export function redactToolCallDetail(
+  detail: ToolCallDetail,
+  secrets: readonly string[],
+): ToolCallDetail {
+  return {
+    ...detail,
+    ...(detail.input === undefined ? {} : { input: redactSecrets(detail.input, secrets) }),
+    ...(detail.output === undefined ? {} : { output: redactSecrets(detail.output, secrets) }),
+  };
 }
 
 /** Puts a note on the newest step, splitting it off a run of the same step so it stays in order. */

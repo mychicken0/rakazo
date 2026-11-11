@@ -11,6 +11,12 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { Fragment } from "react";
 import { toolStepCount } from "../lib/tool-activity-view";
+import type {
+  ToolCall,
+  ToolCallField,
+  ToolCallOutput as ToolCallOutputView,
+} from "../lib/tool-call-view";
+import { formatCallDuration, toolCallView } from "../lib/tool-call-view";
 
 type ToolStep = Extract<ThreadMessage["blocks"][number], { kind: "steps" }>["steps"][number];
 
@@ -71,38 +77,181 @@ export function ToolSteps({
   );
 }
 
-/** Each call's input and output, or the reasoning summary, folded under its step. */
+/** The reasoning summary, or each call's input and output, folded under its step. */
 function ToolStepDetails({ step }: { step: ToolStep }) {
-  const details = step.details ?? [];
-  if (!details.some(Boolean)) return null;
+  if (step.thinking) {
+    if (!step.text) return null;
+    return (
+      <div className="ms-5 mb-1">
+        <DetailDisclosure summary={<Trans>Reasoning</Trans>}>
+          <div className="text-body-sm text-foreground/80">
+            <ChatMarkdown>{step.text}</ChatMarkdown>
+          </div>
+        </DetailDisclosure>
+      </div>
+    );
+  }
+  const calls = (step.calls ?? []).filter(
+    (call) => call.input !== undefined || call.output !== undefined,
+  );
+  if (calls.length === 0) return null;
   return (
     <div className="ms-5 mb-1 space-y-0.5">
-      {details.map((detail, index) =>
-        detail ? (
-          <Collapsible key={index} data-testid="tool-step-detail" className="group/detail">
-            <CollapsibleTrigger className="flex cursor-pointer items-center gap-1 text-label text-muted-foreground outline-none hover:text-foreground/75 focus-visible:ring-2 focus-visible:ring-ring">
-              <ChevronRight
-                aria-hidden
-                size={12}
-                strokeWidth={1.8}
-                className="transition-transform duration-150 group-data-panel-open/detail:rotate-90 motion-reduce:transition-none"
-              />
-              {step.thinking ? (
-                <Trans>Reasoning</Trans>
-              ) : details.length > 1 ? (
-                <Trans>Call {index + 1}</Trans>
-              ) : (
-                <Trans>Input and output</Trans>
-              )}
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-2 font-mono text-label text-foreground/80">
-                {detail}
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null,
-      )}
+      {calls.map((call, index) => (
+        <ToolCallRow key={index} call={call} />
+      ))}
+    </div>
+  );
+}
+
+function DetailDisclosure({
+  summary,
+  aside,
+  children,
+}: {
+  summary: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Collapsible data-testid="tool-step-detail" className="group/detail min-w-0">
+      <CollapsibleTrigger className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-sm text-left text-label text-muted-foreground outline-none hover:text-foreground/75 focus-visible:ring-2 focus-visible:ring-ring">
+        <ChevronRight
+          aria-hidden
+          size={12}
+          strokeWidth={1.8}
+          className="shrink-0 transition-transform duration-150 group-data-panel-open/detail:rotate-90 motion-reduce:transition-none"
+        />
+        <span className="min-w-0 flex-1 truncate">{summary}</span>
+        {aside}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-1 mb-2 space-y-2 rounded-md border border-border bg-muted/40 p-2.5">
+          {children}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+const codeBlock =
+  "max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted px-2 py-1.5 font-mono text-label leading-5 text-foreground/85";
+
+function ToolCallRow({ call }: { call: ToolCall }) {
+  const view = toolCallView(call);
+  const failed =
+    call.error === true ||
+    (view.output?.kind === "shell" &&
+      view.output.exitCode !== undefined &&
+      view.output.exitCode !== 0);
+  const duration = formatCallDuration(call.durationMs);
+  return (
+    <DetailDisclosure
+      summary={
+        view.summary ? (
+          <span className="font-mono">{view.summary}</span>
+        ) : (
+          <Trans>Input and output</Trans>
+        )
+      }
+      aside={
+        <span className="flex shrink-0 items-center gap-1.5">
+          {failed ? (
+            <span className="text-destructive">
+              <Trans>failed</Trans>
+            </span>
+          ) : null}
+          {duration ? <span>{duration}</span> : null}
+        </span>
+      }
+    >
+      {view.command ? (
+        <div className="space-y-1">
+          {view.cwd ? (
+            <div className="truncate font-mono text-label text-muted-foreground">{view.cwd}</div>
+          ) : null}
+          <pre className={codeBlock}>
+            <span className="select-none text-muted-foreground">$ </span>
+            {view.command}
+          </pre>
+        </div>
+      ) : null}
+      {view.fields.length > 0 ? <FieldList fields={view.fields} /> : null}
+      {view.output ? <CallOutput output={view.output} error={call.error === true} /> : null}
+    </DetailDisclosure>
+  );
+}
+
+function FieldList({ fields }: { fields: readonly ToolCallField[] }) {
+  return (
+    <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-label">
+      {fields.map((item) => (
+        <Fragment key={item.key}>
+          <dt className="pt-0.5 text-muted-foreground">{item.key}</dt>
+          <dd className="min-w-0">
+            {item.code ? (
+              <pre className={codeBlock}>{item.value}</pre>
+            ) : (
+              <span className="whitespace-pre-wrap break-words text-foreground/85">
+                {item.value}
+              </span>
+            )}
+          </dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+function CallOutput({ output, error }: { output: ToolCallOutputView; error: boolean }) {
+  const label = (
+    <div className={`text-label ${error ? "text-destructive" : "text-muted-foreground"}`}>
+      {error ? <Trans>Error</Trans> : <Trans>Output</Trans>}
+    </div>
+  );
+  if (output.kind === "fields") {
+    return (
+      <div className="space-y-1">
+        {label}
+        <FieldList fields={output.fields} />
+      </div>
+    );
+  }
+  if (output.kind === "text") {
+    return (
+      <div className="space-y-1">
+        {label}
+        {output.text ? (
+          <pre className={codeBlock}>{output.text}</pre>
+        ) : (
+          <div className="text-label text-muted-foreground">
+            <Trans>No output</Trans>
+          </div>
+        )}
+      </div>
+    );
+  }
+  const failedExit = output.exitCode !== undefined && output.exitCode !== 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        {label}
+        {failedExit ? (
+          <span className="text-label text-destructive">
+            <Trans>exit code {output.exitCode}</Trans>
+          </span>
+        ) : null}
+      </div>
+      {output.stdout ? (
+        <pre className={codeBlock}>{output.stdout.replace(/\n$/, "")}</pre>
+      ) : !output.stderr ? (
+        <div className="text-label text-muted-foreground">
+          <Trans>No output</Trans>
+        </div>
+      ) : null}
+      {output.stderr ? (
+        <pre className={`${codeBlock} text-destructive`}>{output.stderr.replace(/\n$/, "")}</pre>
+      ) : null}
     </div>
   );
 }

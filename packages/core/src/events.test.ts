@@ -21,6 +21,7 @@ import {
   sanitizeJsonValue,
   sanitizeUtf16ForJson,
   stripLiveStreamingProgress,
+  toolCallDetail,
   toolNameFromLabel,
   trackToolCallStreak,
   trackToolNameStreak,
@@ -143,12 +144,19 @@ describe("reduceLiveMessageBlocks", () => {
       type: "tool",
       name: "shell",
       executionId: "call-1",
-      detail: "input: ls",
+      detail: { input: '{ "command": "ls" }' },
     });
     expect(called).toEqual([
       {
         kind: "steps",
-        steps: [{ label: "Shell", count: 1, executionIds: ["call-1"], details: ["input: ls"] }],
+        steps: [
+          {
+            label: "Shell",
+            count: 1,
+            executionIds: ["call-1"],
+            calls: [{ input: '{ "command": "ls" }' }],
+          },
+        ],
       },
     ]);
     const second = reduceLiveMessageBlocks(called, {
@@ -159,7 +167,7 @@ describe("reduceLiveMessageBlocks", () => {
     const finished = reduceLiveMessageBlocks(second, {
       type: "tool_result",
       executionId: "call-2",
-      detail: "input: pwd\n\noutput: /work",
+      detail: { input: '{ "command": "pwd" }', output: "/work", durationMs: 12 },
     });
     expect(finished).toEqual([
       {
@@ -169,14 +177,33 @@ describe("reduceLiveMessageBlocks", () => {
             label: "Shell",
             count: 2,
             executionIds: ["call-1", "call-2"],
-            details: ["input: ls", "input: pwd\n\noutput: /work"],
+            calls: [
+              { input: '{ "command": "ls" }' },
+              { input: '{ "command": "pwd" }', output: "/work", durationMs: 12 },
+            ],
           },
         ],
       },
     ]);
     expect(
-      reduceLiveMessageBlocks(finished, { type: "tool_result", executionId: "other", detail: "x" }),
+      reduceLiveMessageBlocks(finished, {
+        type: "tool_result",
+        executionId: "other",
+        detail: { output: "x" },
+      }),
     ).toEqual(finished);
+  });
+
+  it("keeps a call's arguments valid JSON when shortening long values", () => {
+    const detail = toolCallDetail({
+      input: { command: "x".repeat(2_000) },
+      output: "done",
+      durationMs: 12.4,
+    });
+    expect(JSON.parse(detail?.input ?? "").command).toMatch(/^x{1500}… \(500 more characters\)$/);
+    expect(detail).toMatchObject({ output: "done", durationMs: 12 });
+    expect(toolCallDetail({ error: "boom" })).toEqual({ output: "boom", error: true });
+    expect(toolCallDetail({})).toBeUndefined();
   });
 
   it("replaces an unpunctuated tool status line with its step at once", () => {
@@ -196,7 +223,7 @@ describe("reduceLiveMessageBlocks", () => {
       {
         kind: "steps",
         steps: [
-          { label: "Thinking", count: 1, thinking: true, details: ["Checking the date"] },
+          { label: "Thinking", count: 1, thinking: true, text: "Checking the date" },
           { label: "Shell", count: 1 },
         ],
       },
@@ -205,7 +232,7 @@ describe("reduceLiveMessageBlocks", () => {
       {
         kind: "steps",
         steps: [
-          { label: "Thinking", count: 1, thinking: true, details: ["Checking the date"] },
+          { label: "Thinking", count: 1, thinking: true, text: "Checking the date" },
           { label: "Shell", count: 1, outcomes: { succeeded: 1 } },
         ],
       },

@@ -21,6 +21,7 @@ import {
   normalizeRunError,
   redactSecrets,
   redactSecretsAfter,
+  redactToolCallDetail,
   TAKEOVER_COMPUTER_PENDING_STATE,
   userRunError,
   withoutLastToolStepNotes,
@@ -557,7 +558,7 @@ async function onToolCalled(ctx: RunContext, event: RuntimeEvent<"tool">): Promi
     payload: {
       name: event.name,
       executionId: event.executionId,
-      ...(inputDetail ? { detail: redactSecrets(inputDetail, ctx.secrets) } : {}),
+      ...(inputDetail ? { detail: redactToolCallDetail(inputDetail, ctx.secrets) } : {}),
     },
   });
   await showNarrationStatus(ctx, heldNote);

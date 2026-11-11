@@ -1,5 +1,6 @@
 import type { AgentToolCompletion } from "@rakazo/adapter-kit";
-import { formatToolCallDetail } from "@rakazo/core";
+import type { ToolCallDetail } from "@rakazo/core";
+import { toolCallDetail } from "@rakazo/core";
 import type { ReplyState } from "./run-context.js";
 import { toolResultError } from "./tool-result-error.js";
 
@@ -27,19 +28,19 @@ export function recordToolCallInput(
   reply: ReplyState,
   executionId: string,
   input: unknown,
-): string | undefined {
+): ToolCallDetail | undefined {
   reply.toolInputs.set(executionId, input);
-  return formatToolCallDetail({ input });
+  return toolCallDetail({ input });
 }
 
 /** Remembers how a call ended. Returns the input and output to show on its step. */
 export function recordToolCallResult(
   reply: ReplyState,
   completion: AgentToolCompletion,
-): string | undefined {
+): ToolCallDetail | undefined {
   const error =
     completion.error === undefined ? toolResultError(completion.result) : completion.error;
-  const detail = formatToolCallDetail({
+  const detail = toolCallDetail({
     input: reply.toolInputs.get(completion.executionId),
     output: completion.paused ? "Waiting for approval." : (resultText(completion.result) ?? ""),
     error: errorText(error),

@@ -1,5 +1,6 @@
 import type { AgentToolCompletion } from "@rakazo/adapter-kit";
-import { redactSecrets } from "@rakazo/core";
+import type { ToolCallDetail } from "@rakazo/core";
+import { redactSecrets, redactToolCallDetail } from "@rakazo/core";
 import type { ThreadEvents } from "@rakazo/db";
 import { RunHistoryWriteError } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -61,7 +62,7 @@ export function toolCompletionAuditPayload(
   completion: AgentToolCompletion,
   secrets: string[] = [],
   /** The call's input and output as its step shows them. */
-  detail?: string,
+  detail?: ToolCallDetail,
 ): Record<string, unknown> {
   const durationMs = Number.isFinite(completion.durationMs)
     ? Math.max(0, Math.round(completion.durationMs))
@@ -77,7 +78,7 @@ export function toolCompletionAuditPayload(
   if (error !== undefined) {
     payload.error = sanitizeConnectorError(error, secrets);
   }
-  if (detail !== undefined) payload.detail = redactSecrets(detail, secrets);
+  if (detail !== undefined) payload.detail = redactToolCallDetail(detail, secrets);
   if (!isAuditableToolResult(completion.result)) return payload;
 
   payload.contentTypes = completion.result.content.flatMap((part) => {
@@ -110,7 +111,7 @@ export async function appendToolCompletionAudit(
   target: { spaceId: string; threadId: string; botId: string; runId: string },
   completion: AgentToolCompletion,
   secrets: string[] = [],
-  detail?: string,
+  detail?: ToolCallDetail,
 ): Promise<void> {
   const payload = toolCompletionAuditPayload(completion, secrets, detail);
   getLogger().info("agent.tool.completed", {

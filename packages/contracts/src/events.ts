@@ -255,10 +255,23 @@ export const MessageBlock = z.discriminatedUnion("kind", [
         note: z.string().optional(),
         /** The call behind each of this step's `count` calls, when known. */
         executionIds: z.array(z.string()).optional(),
-        /** Each call's input and output as plain text, in the same order as its calls. */
-        details: z.array(z.string()).optional(),
+        /** Each call's input and output, in the same order as its calls. */
+        calls: z
+          .array(
+            z.object({
+              /** The call's arguments as JSON text, long values shortened. */
+              input: z.string().optional(),
+              /** What the call returned, or why it failed when `error` is set. */
+              output: z.string().optional(),
+              error: z.literal(true).optional(),
+              durationMs: z.number().int().nonnegative().optional(),
+            }),
+          )
+          .optional(),
         /** The model's reasoning summary rather than a tool call. */
         thinking: z.literal(true).optional(),
+        /** A reasoning step's summary text. */
+        text: z.string().optional(),
         /** How many of this step's calls succeeded, failed, or were stopped before finishing. */
         outcomes: z
           .object({

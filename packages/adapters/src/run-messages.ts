@@ -1,5 +1,10 @@
 import type { MessageBlock } from "@rakazo/contracts";
-import { callIdFromClientNonce, isBackgroundRunTrigger, redactSecrets } from "@rakazo/core";
+import {
+  callIdFromClientNonce,
+  isBackgroundRunTrigger,
+  redactSecrets,
+  redactToolCallDetail,
+} from "@rakazo/core";
 import type { Prisma, RunLease } from "@rakazo/db";
 import {
   appendEventInTransaction,
@@ -48,9 +53,10 @@ export function redactBlocks(blocks: MessageBlock[], secrets: string[]): Message
           ...step,
           label: redactSecrets(step.label, secrets),
           ...(step.note === undefined ? {} : { note: redactSecrets(step.note, secrets) }),
-          ...(step.details === undefined
+          ...(step.calls === undefined
             ? {}
-            : { details: step.details.map((detail) => redactSecrets(detail, secrets)) }),
+            : { calls: step.calls.map((call) => redactToolCallDetail(call, secrets)) }),
+          ...(step.text === undefined ? {} : { text: redactSecrets(step.text, secrets) }),
         })),
       };
     }
