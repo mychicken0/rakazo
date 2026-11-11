@@ -120,7 +120,7 @@ function DetailDisclosure({
           aria-hidden
           size={12}
           strokeWidth={1.8}
-          className="shrink-0 transition-transform duration-150 group-data-panel-open/detail:rotate-90 motion-reduce:transition-none"
+          className="shrink-0 transition-transform duration-150 group-data-open/detail:rotate-90 motion-reduce:transition-none"
         />
         <span className="min-w-0 flex-1 truncate">{summary}</span>
         {aside}
