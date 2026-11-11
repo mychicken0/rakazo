@@ -63,9 +63,46 @@ export function ToolSteps({
                 {step.count > 1 ? ` ×${step.count}` : ""}
               </span>
             </div>
+            <ToolStepDetails step={step} />
           </Fragment>
         );
       })}
+    </div>
+  );
+}
+
+/** Each call's input and output, or the reasoning summary, folded under its step. */
+function ToolStepDetails({ step }: { step: ToolStep }) {
+  const details = step.details ?? [];
+  if (!details.some(Boolean)) return null;
+  return (
+    <div className="ms-5 mb-1 space-y-0.5">
+      {details.map((detail, index) =>
+        detail ? (
+          <Collapsible key={index} data-testid="tool-step-detail" className="group/detail">
+            <CollapsibleTrigger className="flex cursor-pointer items-center gap-1 text-label text-muted-foreground outline-none hover:text-foreground/75 focus-visible:ring-2 focus-visible:ring-ring">
+              <ChevronRight
+                aria-hidden
+                size={12}
+                strokeWidth={1.8}
+                className="transition-transform duration-150 group-data-panel-open/detail:rotate-90 motion-reduce:transition-none"
+              />
+              {step.thinking ? (
+                <Trans>Reasoning</Trans>
+              ) : details.length > 1 ? (
+                <Trans>Call {index + 1}</Trans>
+              ) : (
+                <Trans>Input and output</Trans>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <pre className="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-2 font-mono text-label text-foreground/80">
+                {detail}
+              </pre>
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null,
+      )}
     </div>
   );
 }

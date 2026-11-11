@@ -95,6 +95,7 @@ import { PiJsonlSessionRecorder } from "./pi-session.js";
 import { withPiTelemetry } from "./pi-telemetry.js";
 import { withPiThinkingActivity } from "./pi-thinking-activity.js";
 import { observedPiStream } from "./pi-usage.js";
+import { withDetailedReasoningSummary } from "./reasoning-summary.js";
 import type { RuntimeContextDecision } from "./runtime-context.js";
 import { createRuntimeContextPolicy } from "./runtime-context.js";
 import { deliverFinishedShells } from "./shell-command-stream.js";
@@ -237,6 +238,9 @@ export class PiAgentRuntime implements AgentRuntime {
       queue.push({ type: "thinking", active: next });
     };
     const stopThinking = () => setThinking(false);
+    const pushReasoning = (text: string) => {
+      if (!signal.aborted) queue.push({ type: "reasoning", text });
+    };
     signal.addEventListener("abort", stopThinking, { once: true });
 
     const work = withPiTelemetry(request, async (span) => {
@@ -459,7 +463,7 @@ export class PiAgentRuntime implements AgentRuntime {
                 target.models,
                 target.model,
                 ctx,
-                withCloudflareAuth(target.config, options),
+                withCloudflareAuth(target.config, withDetailedReasoningSummary(options)),
                 target.config.maxTokens,
                 () => target.credentials?.accessToken ?? target.apiKey,
                 (preparedOptions) =>
@@ -484,6 +488,7 @@ export class PiAgentRuntime implements AgentRuntime {
                 target.config.cacheCapabilities?.retentionMode,
               ),
               setThinking,
+              pushReasoning,
             );
           },
           onContextLimit: (contextWindow) => {

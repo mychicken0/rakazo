@@ -221,6 +221,7 @@ import {
   recentThreadFilesInstruction,
 } from "./thread-artifacts.js";
 import { loadAgentTicketContext } from "./ticket-context.js";
+import { recordToolCallResult } from "./tool-call-details.js";
 import { appendToolCompletionAudit, toolCompletionOutcome } from "./tool-completion-audit.js";
 import { toolResultFingerprint } from "./tool-loop.js";
 import { restoreTurnCheckpoint } from "./turn-checkpoint.js";
@@ -1942,6 +1943,7 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
                   },
                   completion,
                   runSecrets,
+                  recordToolCallResult(state.reply, completion),
                 );
                 state.toolResults.set(
                   completion.executionId,

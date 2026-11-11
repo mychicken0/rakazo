@@ -10,16 +10,14 @@ afterEach(() => {
 });
 
 describe("tool activity preference", () => {
-  it("stays off unless a saved choice turns it on", () => {
+  it("stays on unless a saved choice turns it off", () => {
     expect(normalizeToolActivityEnabled("on")).toBe(true);
-    expect(normalizeToolActivityEnabled("ON")).toBe(true);
-    expect(normalizeToolActivityEnabled(" on ")).toBe(true);
     expect(normalizeToolActivityEnabled("off")).toBe(false);
     expect(normalizeToolActivityEnabled("OFF")).toBe(false);
-    expect(normalizeToolActivityEnabled(null)).toBe(false);
-    expect(normalizeToolActivityEnabled(undefined)).toBe(false);
-    expect(normalizeToolActivityEnabled("")).toBe(false);
-    expect(normalizeToolActivityEnabled("nonsense")).toBe(false);
+    expect(normalizeToolActivityEnabled(" off ")).toBe(false);
+    expect(normalizeToolActivityEnabled(null)).toBe(true);
+    expect(normalizeToolActivityEnabled(undefined)).toBe(true);
+    expect(normalizeToolActivityEnabled("")).toBe(true);
   });
 
   it("saves the choice as on or off", async () => {
@@ -31,7 +29,7 @@ describe("tool activity preference", () => {
       },
     });
     const { toolActivityPreference } = await import("./tool-activity-preference");
-    expect(toolActivityPreference.get()).toBe(false);
+    expect(toolActivityPreference.get()).toBe(true);
     toolActivityPreference.set(false);
     expect(store.get(TOOL_ACTIVITY_STORAGE_KEY)).toBe("off");
     toolActivityPreference.set(true);

@@ -109,12 +109,15 @@ export function projectMessages(
       };
       continue;
     }
+    if (event.type === "agent.tool.completed") {
+      const live = liveById.get(progressMessageId(event));
+      const update = toolResultUpdate(payload);
+      if (live && update) live.blocks = reduceLiveMessageBlocks(live.blocks, update);
+      continue;
+    }
     if (event.type === "agent.tool.called") {
       const live = liveProjection(event, createdAt);
-      live.blocks = reduceLiveMessageBlocks(live.blocks, {
-        type: "tool",
-        name: String(payload.name ?? ""),
-      });
+      live.blocks = reduceLiveMessageBlocks(live.blocks, toolCallUpdate(payload));
       live.meta = {
         ...live.meta,
         seq: event.seq,
@@ -300,20 +303,27 @@ function clampRunFailure(message: string): string {
 
 export type LiveMessageUpdate =
   | { type: "progress"; payload: Record<string, unknown> | undefined }
-  | { type: "tool"; name: string };
+  | { type: "tool"; name: string; executionId?: string; detail?: string }
+  /** A call finished: its step shows the input and output. */
+  | { type: "tool_result"; executionId: string; detail: string };
 
 export function reduceLiveMessageBlocks(
   current: readonly MessageBlock[],
   update: LiveMessageUpdate,
 ): MessageBlock[] {
+  if (update.type === "tool_result") {
+    return withToolCallDetail(current, update.executionId, update.detail);
+  }
   // A reset drops the text streamed so far (it will not be in the reply) and keeps the steps,
   // including tools still waiting on that text to finish its sentence.
   let blocks = current;
   if (update.type === "progress" && update.payload?.reset === true) {
     const waiting = current.at(-1)?.kind === "progress" ? current.at(-1) : undefined;
     blocks = current.filter((block) => block.kind !== "text" && block.kind !== "progress");
-    for (const name of waiting?.kind === "progress" ? (waiting.pendingToolNames ?? []) : []) {
-      blocks = appendToolCallSegment(blocks, name);
+    if (waiting?.kind === "progress") {
+      for (const [index, name] of (waiting.pendingToolNames ?? []).entries()) {
+        blocks = appendToolCallSegment(blocks, name, waiting.pendingToolExecutionIds?.[index]);
+      }
     }
   }
   const tail = blocks.at(-1);
@@ -327,18 +337,29 @@ export function reduceLiveMessageBlocks(
       : tail?.kind === "progress"
         ? tail.text
         : "";
-  const pendingToolNames = [
-    ...(tail?.kind === "progress" ? (tail.pendingToolNames ?? []) : []),
-    ...(update.type === "tool" ? [update.name] : []),
+  const priorPendingNames = tail?.kind === "progress" ? (tail.pendingToolNames ?? []) : [];
+  const pendingToolNames = [...priorPendingNames, ...(update.type === "tool" ? [update.name] : [])];
+  const pendingToolExecutionIds = [
+    ...priorPendingNames.map((_, index) =>
+      tail?.kind === "progress" ? (tail.pendingToolExecutionIds?.[index] ?? "") : "",
+    ),
+    ...(update.type === "tool" ? [update.executionId ?? ""] : []),
   ];
   const activity =
     update.type === "progress"
       ? update.payload?.activity === true
       : tail?.kind === "progress" && tail.activity === true;
 
-  if (pendingToolNames.length > 0 && endsSentence(tailText)) {
+  // A tool status line is not narration, so its step replaces it at once instead of
+  // waiting for a sentence end that may never come.
+  if (pendingToolNames.length > 0 && (activity || endsSentence(tailText))) {
     let next = activity ? [...segments] : appendTextSegment(segments, tailText);
-    for (const name of pendingToolNames) next = appendToolCallSegment(next, name);
+    for (const [index, name] of pendingToolNames.entries()) {
+      next = appendToolCallSegment(next, name, pendingToolExecutionIds[index] || undefined);
+    }
+    if (update.type === "tool" && update.executionId && update.detail) {
+      next = withToolCallDetail(next, update.executionId, update.detail);
+    }
     return next;
   }
   if (!tailText) return [...segments];
@@ -349,8 +370,26 @@ export function reduceLiveMessageBlocks(
       text: tailText,
       ...(activity ? { activity: true as const } : {}),
       ...(pendingToolNames.length > 0 ? { pendingToolNames } : {}),
+      ...(pendingToolExecutionIds.some(Boolean) ? { pendingToolExecutionIds } : {}),
     },
   ];
+}
+
+/** The live update for an `agent.tool.called` payload. */
+export function toolCallUpdate(payload: Record<string, unknown>): LiveMessageUpdate {
+  return {
+    type: "tool",
+    name: String(payload.name ?? ""),
+    ...(typeof payload.executionId === "string" ? { executionId: payload.executionId } : {}),
+    ...(typeof payload.detail === "string" ? { detail: payload.detail } : {}),
+  };
+}
+
+/** The live update for an `agent.tool.completed` payload, when it carries the call's detail. */
+export function toolResultUpdate(payload: Record<string, unknown>): LiveMessageUpdate | undefined {
+  return typeof payload.executionId === "string" && typeof payload.detail === "string"
+    ? { type: "tool_result", executionId: payload.executionId, detail: payload.detail }
+    : undefined;
 }
 
 function liveMessageText(blocks: readonly MessageBlock[]): string {
@@ -404,6 +443,10 @@ export function withToolStepOutcomes(
     }
     const steps: ToolStep[] = [];
     for (const step of block.steps) {
+      if (step.thinking) {
+        steps.push(step);
+        continue;
+      }
       const outcomes: NonNullable<ToolStep["outcomes"]> = {};
       for (let index = 0; index < step.count; index += 1) {
         const call = calls[next++];
@@ -418,13 +461,95 @@ export function withToolStepOutcomes(
   return annotated;
 }
 
-export function appendToolStep(steps: readonly ToolStep[], toolName: string): ToolStep[] {
+export function appendToolStep(
+  steps: readonly ToolStep[],
+  toolName: string,
+  executionId?: string,
+): ToolStep[] {
   const label = humanizeToolName(toolName);
   const last = steps.at(-1);
-  if (last && last.label === label) {
-    return [...steps.slice(0, -1), { ...last, count: last.count + 1 }];
+  if (last && last.label === label && !last.thinking) {
+    return [
+      ...steps.slice(0, -1),
+      {
+        ...last,
+        count: last.count + 1,
+        ...(executionId ? { executionIds: [...(last.executionIds ?? []), executionId] } : {}),
+      },
+    ];
   }
-  return [...steps, { label, count: 1 }];
+  return [...steps, { label, count: 1, ...(executionId ? { executionIds: [executionId] } : {}) }];
+}
+
+/** Puts a call's input and output on the step that shows it. Unknown calls change nothing. */
+export function withToolCallDetail(
+  segments: readonly MessageBlock[],
+  executionId: string,
+  detail: string,
+): MessageBlock[] {
+  let changed = false;
+  const next = segments.map((block) => {
+    if (block.kind !== "steps") return block;
+    const steps = block.steps.map((step) => {
+      const index = step.executionIds?.indexOf(executionId) ?? -1;
+      if (index < 0 || step.details?.[index] === detail) return step;
+      const details = Array.from({ length: step.count }, (_, i) => step.details?.[i] ?? "");
+      details[index] = detail;
+      changed = true;
+      return { ...step, details };
+    });
+    return changed ? { ...block, steps } : block;
+  });
+  return changed ? next : [...segments];
+}
+
+/** Adds the model's reasoning summary as its own step. */
+export function appendThinkingStep(
+  segments: readonly MessageBlock[],
+  text: string,
+): MessageBlock[] {
+  const step: ToolStep = { label: "Thinking", count: 1, thinking: true, details: [text] };
+  const last = segments.at(-1);
+  if (last?.kind === "steps") {
+    return [...segments.slice(0, -1), { kind: "steps", steps: [...last.steps, step] }];
+  }
+  return [...segments, { kind: "steps", steps: [step] }];
+}
+
+const TOOL_DETAIL_INPUT_MAX = 2_000;
+const TOOL_DETAIL_OUTPUT_MAX = 3_000;
+
+function clipDetail(text: string, max: number): string {
+  return text.length > max
+    ? `${text.slice(0, max)}\n… (${text.length - max} more characters)`
+    : text;
+}
+
+/** A call's input and, once it finished, its output, as plain text for the step. */
+export function formatToolCallDetail(call: {
+  input?: unknown;
+  output?: string;
+  error?: string;
+  durationMs?: number;
+}): string | undefined {
+  const parts: string[] = [];
+  if (call.input !== undefined) {
+    let input: string;
+    try {
+      input = JSON.stringify(call.input, null, 2) ?? String(call.input);
+    } catch {
+      input = String(call.input);
+    }
+    parts.push(`input:\n${clipDetail(input, TOOL_DETAIL_INPUT_MAX)}`);
+  }
+  const result = call.error ?? call.output;
+  if (result !== undefined) {
+    const took = call.durationMs === undefined ? "" : ` (${Math.round(call.durationMs)} ms)`;
+    parts.push(
+      `${call.error === undefined ? "output" : "error"}${took}:\n${clipDetail(result, TOOL_DETAIL_OUTPUT_MAX)}`,
+    );
+  }
+  return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 
 /** Puts a note on the newest step, splitting it off a run of the same step so it stays in order. */
@@ -512,10 +637,11 @@ export function appendTextSegment(segments: readonly MessageBlock[], text: strin
 export function appendToolCallSegment(
   segments: readonly MessageBlock[],
   toolName: string,
+  executionId?: string,
 ): MessageBlock[] {
   const last = segments.at(-1);
   const priorSteps = last?.kind === "steps" ? last.steps : [];
-  const steps = appendToolStep(priorSteps, toolName);
+  const steps = appendToolStep(priorSteps, toolName, executionId);
   if (last?.kind === "steps") {
     return [...segments.slice(0, -1), { kind: "steps", steps }];
   }

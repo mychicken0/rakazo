@@ -48,6 +48,9 @@ export function redactBlocks(blocks: MessageBlock[], secrets: string[]): Message
           ...step,
           label: redactSecrets(step.label, secrets),
           ...(step.note === undefined ? {} : { note: redactSecrets(step.note, secrets) }),
+          ...(step.details === undefined
+            ? {}
+            : { details: step.details.map((detail) => redactSecrets(detail, secrets)) }),
         })),
       };
     }

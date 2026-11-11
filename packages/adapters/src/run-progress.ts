@@ -11,6 +11,7 @@ import {
   noteLastToolStep,
   redactSecrets,
   redactSecretsAfter,
+  withToolCallDetail,
   withToolStepOutcomes,
 } from "@rakazo/core";
 import type { Run } from "@rakazo/db";
@@ -66,8 +67,11 @@ export async function createReplyState(
     narrationSoFar: "",
     narrationStatusShowing: false,
     pendingToolNames: [],
+    pendingToolExecutionIds: [],
     toolCalls: [],
     toolOutcomes: new Map(),
+    toolInputs: new Map(),
+    toolDetails: new Map(),
     pendingProgress: "",
     lastProgressAt: 0,
     hasStreamedText: false,
@@ -176,10 +180,15 @@ export function flushPendingTools(reply: ReplyState) {
     reply.messageSegments = appendTextSegment(reply.messageSegments, reply.currentTextSegment);
     reply.currentTextSegment = "";
   }
-  for (const name of reply.pendingToolNames) {
-    reply.messageSegments = appendToolCallSegment(reply.messageSegments, name);
+  for (const [index, name] of reply.pendingToolNames.entries()) {
+    reply.messageSegments = appendToolCallSegment(
+      reply.messageSegments,
+      name,
+      reply.pendingToolExecutionIds[index],
+    );
   }
   reply.pendingToolNames = [];
+  reply.pendingToolExecutionIds = [];
 }
 
 /**
@@ -190,12 +199,21 @@ export function withReplyToolOutcomes(
   reply: ReplyState,
   unfinished?: ToolStepOutcome,
 ): MessageBlock[] {
-  return withToolStepOutcomes(
+  let segments = withToolStepOutcomes(
     reply.messageSegments,
     reply.toolCalls.map(({ label, executionId }) => ({
       label,
       outcome: reply.toolOutcomes.get(executionId) ?? unfinished,
     })),
+  );
+  for (const [executionId, detail] of reply.toolDetails) {
+    segments = withToolCallDetail(segments, executionId, detail);
+  }
+  // Call ids only line details up with their steps; the saved reply does not need them.
+  return segments.map((block) =>
+    block.kind === "steps"
+      ? { ...block, steps: block.steps.map(({ executionIds: _ids, ...step }) => step) }
+      : block,
   );
 }
 

@@ -2,9 +2,9 @@ import { createStoredPreference } from "./stored-preference";
 
 export const TOOL_ACTIVITY_STORAGE_KEY = "rakazo.showToolActivity";
 
-/** Only a saved "on" shows tool cards. Missing or unreadable storage stays off so chats stay clean. */
+/** Tool cards show unless turned off, so people can see what their bots did. */
 export function normalizeToolActivityEnabled(raw: string | null | undefined): boolean {
-  return raw?.trim().toLowerCase() === "on";
+  return raw?.trim().toLowerCase() !== "off";
 }
 
 export const toolActivityPreference = createStoredPreference({

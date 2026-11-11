@@ -37,6 +37,7 @@ describe("tool step outcomes", () => {
         { label: "Shell", executionId: "call-2" },
       ],
       toolOutcomes: new Map([["call-1", "succeeded" as const]]),
+      toolDetails: new Map(),
     } as unknown as ReplyState;
     expect(withReplyToolOutcomes(reply)).toEqual([
       { kind: "steps", steps: [{ label: "Shell", count: 2, outcomes: { succeeded: 1 } }] },

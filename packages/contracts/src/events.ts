@@ -242,6 +242,8 @@ export const MessageBlock = z.discriminatedUnion("kind", [
     /** Provider-generated tool status rather than assistant-authored narration. */
     activity: z.literal(true).optional(),
     pendingToolNames: z.array(z.string()).optional(),
+    /** The call behind each pending tool name, in the same order. */
+    pendingToolExecutionIds: z.array(z.string()).optional(),
   }),
   z.object({
     kind: z.literal("steps"),
@@ -251,6 +253,12 @@ export const MessageBlock = z.discriminatedUnion("kind", [
         count: z.number().int().positive(),
         /** What the bot wrote just before this step, kept out of its reply. */
         note: z.string().optional(),
+        /** The call behind each of this step's `count` calls, when known. */
+        executionIds: z.array(z.string()).optional(),
+        /** Each call's input and output as plain text, in the same order as its calls. */
+        details: z.array(z.string()).optional(),
+        /** The model's reasoning summary rather than a tool call. */
+        thinking: z.literal(true).optional(),
         /** How many of this step's calls succeeded, failed, or were stopped before finishing. */
         outcomes: z
           .object({

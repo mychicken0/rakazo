@@ -60,6 +60,8 @@ export function toolCompletionOutcome(
 export function toolCompletionAuditPayload(
   completion: AgentToolCompletion,
   secrets: string[] = [],
+  /** The call's input and output as its step shows them. */
+  detail?: string,
 ): Record<string, unknown> {
   const durationMs = Number.isFinite(completion.durationMs)
     ? Math.max(0, Math.round(completion.durationMs))
@@ -75,6 +77,7 @@ export function toolCompletionAuditPayload(
   if (error !== undefined) {
     payload.error = sanitizeConnectorError(error, secrets);
   }
+  if (detail !== undefined) payload.detail = redactSecrets(detail, secrets);
   if (!isAuditableToolResult(completion.result)) return payload;
 
   payload.contentTypes = completion.result.content.flatMap((part) => {
@@ -107,8 +110,9 @@ export async function appendToolCompletionAudit(
   target: { spaceId: string; threadId: string; botId: string; runId: string },
   completion: AgentToolCompletion,
   secrets: string[] = [],
+  detail?: string,
 ): Promise<void> {
-  const payload = toolCompletionAuditPayload(completion, secrets);
+  const payload = toolCompletionAuditPayload(completion, secrets, detail);
   getLogger().info("agent.tool.completed", {
     "run.id": target.runId,
     "space.id": target.spaceId,

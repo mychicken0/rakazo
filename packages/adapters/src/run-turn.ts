@@ -11,6 +11,7 @@ import {
   TransientModelError,
 } from "@rakazo/adapter-kit";
 import {
+  appendThinkingStep,
   BACKGROUND_HELPER_TRIGGER,
   containsSecret,
   displayName,
@@ -91,6 +92,7 @@ import {
 } from "./silent-reply.js";
 import { isStrategicInitiativeRun } from "./strategic-initiative.js";
 import { takeoverCheckpointOf } from "./takeover-resume.js";
+import { recordToolCallInput } from "./tool-call-details.js";
 import {
   appendToolCompletionAudit,
   logLoopGuardStop,
@@ -178,6 +180,13 @@ export async function consumeRunEvents(
       }
       if (event.type === "thinking") {
         await publishThinking(event.active);
+        continue;
+      }
+      if (event.type === "reasoning") {
+        if (!isBackgroundRunTrigger(run.trigger) && event.text.trim()) {
+          flushPendingTools(reply);
+          reply.messageSegments = appendThinkingStep(reply.messageSegments, event.text.trim());
+        }
         continue;
       }
       if (
@@ -521,6 +530,8 @@ async function onToolCalled(ctx: RunContext, event: RuntimeEvent<"tool">): Promi
   const stepNames = connectorStepNames(ctx.tools.connector.get(event.name), event.args);
   const callSteps = stepNames.length > 0 ? stepNames : [event.name];
   reply.pendingToolNames.push(...callSteps);
+  reply.pendingToolExecutionIds.push(...callSteps.map(() => event.executionId));
+  const inputDetail = recordToolCallInput(reply, event.executionId, event.args);
   reply.toolCalls.push(
     ...callSteps.map((name) => ({
       label: humanizeToolName(name),
@@ -543,7 +554,11 @@ async function onToolCalled(ctx: RunContext, event: RuntimeEvent<"tool">): Promi
     botId: bot.id,
     type: "agent.tool.called",
     runId,
-    payload: { name: event.name, executionId: event.executionId },
+    payload: {
+      name: event.name,
+      executionId: event.executionId,
+      ...(inputDetail ? { detail: redactSecrets(inputDetail, ctx.secrets) } : {}),
+    },
   });
   await showNarrationStatus(ctx, heldNote);
   tryFlushPendingTools(reply);

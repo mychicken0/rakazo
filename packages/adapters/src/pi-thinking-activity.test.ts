@@ -56,6 +56,30 @@ describe("provider thinking lifecycle boundary", () => {
     expect(JSON.stringify(change.mock.calls)).not.toContain("private fixture reasoning");
     expect(await stream.result()).toBe(message);
   });
+  it("hands over the reasoning summary once its block ends", async () => {
+    const reasoning = vi.fn();
+    const stream = withPiThinkingActivity(
+      events([
+        start,
+        { type: "thinking_delta", contentIndex: 0, delta: "Comparing ", partial: message },
+        { type: "thinking_delta", contentIndex: 0, delta: "both", partial: message },
+        { type: "text_start", contentIndex: 1, partial: message },
+        start,
+        {
+          type: "thinking_end",
+          contentIndex: 0,
+          content: "**Checking the sum**",
+          partial: message,
+        },
+      ]),
+      vi.fn(),
+      reasoning,
+    );
+    for await (const _ of stream) {
+      /* drain */
+    }
+    expect(reasoning.mock.calls).toEqual([["Comparing both"], ["**Checking the sum**"]]);
+  });
   it.each<AssistantMessageEvent>([
     { type: "text_start", contentIndex: 1, partial: message },
     { type: "toolcall_start", contentIndex: 1, partial: message },

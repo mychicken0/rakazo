@@ -121,10 +121,16 @@ export interface ReplyState {
    * sentence boundary, so the step chips never render in the middle of a clause.
    */
   pendingToolNames: string[];
+  /** The call behind each pending tool name, in the same order. */
+  pendingToolExecutionIds: string[];
   /** Every step label a call made, in call order, so its outcome can be saved on its step. */
   toolCalls: { label: string; executionId: string }[];
   /** How each finished call ended, by execution id. */
   toolOutcomes: Map<string, ToolStepOutcome>;
+  /** Each call's input, by execution id, until its result arrives. */
+  toolInputs: Map<string, unknown>;
+  /** Each call's input and output as shown on its step, by execution id. */
+  toolDetails: Map<string, string>;
   pendingProgress: string;
   lastProgressAt: number;
   hasStreamedText: boolean;

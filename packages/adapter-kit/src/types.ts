@@ -708,6 +708,8 @@ export type AgentRuntimeEvent =
   | { type: "text"; text: string }
   /** Explicit provider reasoning lifecycle only; never contains reasoning text. */
   | { type: "thinking"; active: boolean }
+  /** The reasoning summary the provider chose to show, once a reasoning block ends. */
+  | { type: "reasoning"; text: string }
   /** A new assistant message starts; its text does not continue the previous text. */
   | { type: "turn" }
   /** Messages sent while the bot worked were handed to the model before this turn. */

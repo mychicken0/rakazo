@@ -179,7 +179,10 @@ export function toolStepsHistoryText(
   { full = false }: { full?: boolean } = {},
 ): string {
   // Stored blocks can come from an account import, so skip malformed entries instead of throwing.
-  const valid = Array.isArray(steps) ? steps.filter((step) => typeof step?.label === "string") : [];
+  // Reasoning summaries are shown to people; the bot does not need its own back.
+  const valid = Array.isArray(steps)
+    ? steps.filter((step) => typeof step?.label === "string" && !step.thinking)
+    : [];
   if (valid.length === 0) return "";
   const shown = full ? valid : valid.slice(0, TOOL_STEP_MAX_LINES);
   const lines = shown.map((step) => {

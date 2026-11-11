@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendTextSegment,
+  appendThinkingStep,
   appendToolCallSegment,
   appendToolStep,
   containsSecret,
@@ -135,6 +136,80 @@ describe("reduceLiveMessageBlocks", () => {
         payload: { text: "Using browser", activity: true },
       }),
     ).toEqual([{ kind: "progress", text: "Using browser", activity: true }]);
+  });
+
+  it("shows a call's input at once and its output when the call finishes", () => {
+    const called = reduceLiveMessageBlocks([], {
+      type: "tool",
+      name: "shell",
+      executionId: "call-1",
+      detail: "input: ls",
+    });
+    expect(called).toEqual([
+      {
+        kind: "steps",
+        steps: [{ label: "Shell", count: 1, executionIds: ["call-1"], details: ["input: ls"] }],
+      },
+    ]);
+    const second = reduceLiveMessageBlocks(called, {
+      type: "tool",
+      name: "shell",
+      executionId: "call-2",
+    });
+    const finished = reduceLiveMessageBlocks(second, {
+      type: "tool_result",
+      executionId: "call-2",
+      detail: "input: pwd\n\noutput: /work",
+    });
+    expect(finished).toEqual([
+      {
+        kind: "steps",
+        steps: [
+          {
+            label: "Shell",
+            count: 2,
+            executionIds: ["call-1", "call-2"],
+            details: ["input: ls", "input: pwd\n\noutput: /work"],
+          },
+        ],
+      },
+    ]);
+    expect(
+      reduceLiveMessageBlocks(finished, { type: "tool_result", executionId: "other", detail: "x" }),
+    ).toEqual(finished);
+  });
+
+  it("replaces an unpunctuated tool status line with its step at once", () => {
+    const activity = reduceLiveMessageBlocks([], {
+      type: "progress",
+      payload: { text: "Running on your computer: sleep 20", activity: true },
+    });
+
+    expect(
+      reduceLiveMessageBlocks(activity, { type: "tool", name: "shell", executionId: "call-1" }),
+    ).toEqual([{ kind: "steps", steps: [{ label: "Shell", count: 1, executionIds: ["call-1"] }] }]);
+  });
+
+  it("keeps a reasoning step apart from tool steps and their outcomes", () => {
+    const blocks = appendToolCallSegment(appendThinkingStep([], "Checking the date"), "shell");
+    expect(blocks).toEqual([
+      {
+        kind: "steps",
+        steps: [
+          { label: "Thinking", count: 1, thinking: true, details: ["Checking the date"] },
+          { label: "Shell", count: 1 },
+        ],
+      },
+    ]);
+    expect(withToolStepOutcomes(blocks, [{ label: "Shell", outcome: "succeeded" }])).toEqual([
+      {
+        kind: "steps",
+        steps: [
+          { label: "Thinking", count: 1, thinking: true, details: ["Checking the date"] },
+          { label: "Shell", count: 1, outcomes: { succeeded: 1 } },
+        ],
+      },
+    ]);
   });
 
   it("replaces punctuated activity text with its tool step", () => {

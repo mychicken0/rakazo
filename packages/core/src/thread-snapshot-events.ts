@@ -8,6 +8,8 @@ import {
   settleRunSubagents,
   stopsRunHelpers,
   subagentBlockFromPayload,
+  toolCallUpdate,
+  toolResultUpdate,
 } from "./events.js";
 import { mergeThreadHistory, upsertMessageById } from "./message-pages.js";
 import { payloadAuthor, replyMetadata } from "./message-replies.js";
@@ -282,9 +284,7 @@ function reduce(prev: LiveThreadSnapshot, event: ThreadSnapshotEvent): LiveThrea
     const { previous, remaining } = takeLiveMessage(prev.messages, liveId);
     const blocks = reduceLiveMessageBlocks(
       previous?.blocks ?? [],
-      event.type === "thread.progress"
-        ? { type: "progress", payload }
-        : { type: "tool", name: String(payload.name ?? "") },
+      event.type === "thread.progress" ? { type: "progress", payload } : toolCallUpdate(payload),
     );
     return {
       ...prev,
@@ -292,7 +292,19 @@ function reduce(prev: LiveThreadSnapshot, event: ThreadSnapshotEvent): LiveThrea
       messages: [...remaining, liveRow(prev, event, liveId, blocks)],
     };
   }
-  if (event.type === "agent.tool.completed") return advanced();
+  if (event.type === "agent.tool.completed") {
+    const liveId = progressMessageId(event);
+    const update = toolResultUpdate(payload);
+    const live = update ? prev.messages.find((message) => message.id === liveId) : undefined;
+    if (!live || !update) return advanced();
+    const blocks = reduceLiveMessageBlocks(live.blocks, update);
+    return {
+      ...advanced(),
+      messages: prev.messages.map((message) =>
+        message.id === liveId ? { ...message, blocks } : message,
+      ),
+    };
+  }
   if (event.type === "thread.subagent") {
     const block = subagentBlockFromPayload(payload);
     const next = liveRow(prev, event, `subagent:${block.agentId}`, [block]);
