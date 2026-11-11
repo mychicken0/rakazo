@@ -361,6 +361,9 @@ export const secretTools: ToolHandlers = {
           ...(codeOrigin ? { oneTimeCode: { origin: codeOrigin } } : {}),
           ...(replaces ? { replaces } : {}),
           ...(loginFields?.labels ? { loginFields: loginFields.labels } : {}),
+          ...(destination?.auth.type === "login" && typeof args.save === "boolean"
+            ? { saveLogin: args.save }
+            : {}),
           ...(loginFields && (await spaceIsShared(deps.prisma, run.spaceId))
             ? { sharedBrowser: true as const }
             : {}),

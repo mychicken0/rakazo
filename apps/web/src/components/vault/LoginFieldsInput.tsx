@@ -73,6 +73,16 @@ function ValueInput({
  * A login's fields. With `fixedLabels` (a chat card asks for exactly these) only the values and
  * whether each is hidden can change; otherwise fields can be renamed, added and removed.
  */
+/** Values for fields from pasted text: one non-empty line per field, in order, when it has 2+. */
+export function pastedFieldValues(text: string, count: number): string[] | undefined {
+  const lines = text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length >= 2 && lines.length <= count ? lines : undefined;
+}
+
 export function LoginFieldsInput({
   fields,
   fixedLabels,
@@ -109,6 +119,22 @@ export function LoginFieldsInput({
                 disabled={disabled}
                 value={field.value}
                 onChange={(event) => update(index, { value: event.target.value })}
+                onPaste={(event) => {
+                  // A username and password pasted together, one per line, fill the fields in order.
+                  const lines = pastedFieldValues(
+                    event.clipboardData.getData("text/plain"),
+                    fields.length - index,
+                  );
+                  if (!lines) return;
+                  event.preventDefault();
+                  onChange(
+                    fields.map((item, at) =>
+                      at >= index && at < index + lines.length
+                        ? { ...item, value: lines[at - index]! }
+                        : item,
+                    ),
+                  );
+                }}
               />
               <HiddenToggle
                 label={displayLabels?.[index] ?? field.label}

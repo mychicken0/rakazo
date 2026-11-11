@@ -56,6 +56,8 @@ export type VaultEditorInitial = {
   loginLabels?: readonly string[];
   /** The site of the saved login a chat card's answer moves to this one, shown before saving. */
   replacedSite?: string;
+  /** Whether a chat card's Save to Vault starts on; the bot suggests it, the person decides. */
+  remember?: boolean;
   card?: CardSecretValue;
   contact?: ContactFields;
 };
@@ -210,7 +212,7 @@ function EditorForm({
       { label: t`Password`, value: "", hidden: true },
     ];
   const [login, setLogin] = useState(defaultLogin);
-  const [remember, setRemember] = useState(true);
+  const [remember, setRemember] = useState(initial?.remember ?? true);
   const [cardNumber, setCardNumber] = useState(initial?.card?.number ?? "");
   const [expiry, setExpiry] = useState(initial?.card ? expiryText(initial.card) : "");
   const [cvc, setCvc] = useState(initial?.card?.cvc ?? "");

@@ -64,6 +64,11 @@ function secretAskToolSurface() {
               type: "boolean",
               description: "Ask the user to replace a saved value or a login's site.",
             },
+            save: {
+              type: "boolean",
+              description:
+                "For a login: whether the card's Save to Vault starts on. true for a site the user will likely sign in to again; false for a one-off sign-in, after which the login is discarded when this run ends. The user can still change it.",
+            },
             fields: {
               type: "array",
               items: { type: "string" },

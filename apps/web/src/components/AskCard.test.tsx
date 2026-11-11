@@ -629,6 +629,34 @@ it("sends a login for this run only when Save to Vault is off, and reads Sent", 
   expect(container.textContent).not.toContain("Saved");
 });
 
+it("opens the login form as soon as the bot asks, with Save to Vault as it suggested", async () => {
+  const onAnswer = vi.fn(async () => undefined);
+  const { loginFields: _, ...defaultLogin } = loginCard;
+  await render({ ...defaultLogin, saveLogin: false }, undefined, onAnswer);
+
+  // No Add click: the form is already up, and this one-off login starts as use-once.
+  expect(dialog()).not.toBeNull();
+  expect(saveToVault()!.getAttribute("aria-checked")).toBe("false");
+  const username = loginInput("Username");
+  const pasted = new Event("paste", { bubbles: true, cancelable: true }) as Event & {
+    clipboardData: { getData: (type: string) => string };
+  };
+  pasted.clipboardData = { getData: () => "fake-user\nfake-password\n" };
+  await act(async () => username.dispatchEvent(pasted));
+  expect(loginInput("Username").value).toBe("fake-user");
+  expect(loginInput("Password").value).toBe("fake-password");
+  await act(async () => dialogButton("Continue")!.click());
+
+  expect(onAnswer).toHaveBeenCalledWith(
+    "",
+    [
+      { label: "Username", value: "fake-user", hidden: false },
+      { label: "Password", value: "fake-password", hidden: true },
+    ],
+    false,
+  );
+});
+
 it("dismisses a login card from its form, sending nothing typed", async () => {
   const onAnswer = vi.fn(async () => undefined);
   const onDismiss = vi.fn(async () => undefined);

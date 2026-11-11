@@ -82,6 +82,16 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
     return () => field.removeEventListener("beforeinput", keepLineBreaks);
   }, [commandInput, secretField]);
 
+  // A login, card or contact the bot is waiting on opens its form at once, so the person can
+  // type or paste it without finding the card first. Once per card: closing it leaves Add.
+  const [autoOpened, setAutoOpened] = useState(false);
+  const waitingOnForm = Boolean(form) && canAnswer && !ownerOnly && !answered;
+  useEffect(() => {
+    if (!waitingOnForm || autoOpened) return;
+    setAutoOpened(true);
+    setEditorOpen(true);
+  }, [waitingOnForm, autoOpened]);
+
   async function send(value: string, fields?: LoginFieldInput[], remember?: false) {
     setPending("submit");
     setError(null);
@@ -162,6 +172,7 @@ export function SecretAskCard({ block, canAnswer, canDismiss, onAnswer, onDismis
                 loginFields: loginCardFields(block.loginFields),
                 loginLabels: block.loginFields ?? [t`Username`, t`Password`],
                 replacedSite: block.replaces?.origin,
+                ...(block.saveLogin === undefined ? {} : { remember: block.saveLogin }),
               }
             : undefined,
         onDismiss: canDismiss ? dismiss : undefined,
