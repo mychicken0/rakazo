@@ -6,6 +6,7 @@ import type {
   BrowserSnapshotResult,
 } from "@rakazo/adapter-kit";
 import type { PurchaseCardField } from "@rakazo/contracts";
+import { sameLoginSite } from "@rakazo/core";
 import { JSDOM } from "jsdom";
 
 const INTERACTIVE_SELECTOR = [
@@ -182,7 +183,7 @@ export class PageBrowserSession {
     if (saved.protocol !== "https:" || page.protocol !== "https:") {
       throw new FillRefused(notHttps);
     }
-    if (page.origin !== saved.origin) {
+    if (card ? page.origin !== saved.origin : !sameLoginSite(saved.origin, page.origin)) {
       throw new FillRefused(
         card
           ? `The page is not on the merchant's site for this purchase. ${REOPEN_MERCHANT_SITE}`

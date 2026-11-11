@@ -173,7 +173,13 @@ describe("live page helper saved-login fill", () => {
     const other = installPageHelper("https://www.example.test/other", html);
     other.browser.fill("Email", "fake-user", origin, "username");
     expect(fieldValue(other.domWindow, "Email")).toBe("fake-user");
-    for (const url of ["https://example.test/login", "https://www.example.test.evil.test/login"]) {
+    const apex = installPageHelper("https://example.test/login", html);
+    apex.browser.fill("Email", "fake-user", origin, "username");
+    expect(fieldValue(apex.domWindow, "Email")).toBe("fake-user");
+    for (const url of [
+      "https://app.example.test/login",
+      "https://www.example.test.evil.test/login",
+    ]) {
       const { domWindow, browser } = installPageHelper(url, html);
       const email = "Email";
       expect(() => browser.fill(email, "fake-user", origin, "username")).toThrow(

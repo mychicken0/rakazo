@@ -767,7 +767,11 @@ describe("normalizeSecretDestination", () => {
     expect(sameSecretDestination(saved, asked("https://www.example.test/account/login?x=1"))).toBe(
       true,
     );
-    expect(sameSecretDestination(saved, asked("https://example.test/account/login"))).toBe(false);
+    // The same site without "www." is where it redirects; another host is not.
+    expect(sameSecretDestination(saved, asked("https://example.test/account/login"))).toBe(true);
+    expect(sameSecretDestination(saved, asked("https://app.example.test/account/login"))).toBe(
+      false,
+    );
   });
 
   it("still turns down page URLs on sites a credential can't be saved for", () => {

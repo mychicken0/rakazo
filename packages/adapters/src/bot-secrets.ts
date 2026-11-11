@@ -37,6 +37,7 @@ import {
   SecretHttpRequest,
   sameLoginFieldLabel,
 } from "@rakazo/contracts";
+import { loginSiteVariant, sameLoginSite } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 import {
   lockSpaceSettings,
@@ -486,9 +487,13 @@ export function sameSecretDestination(
   left: BotSecretDestination,
   right: BotSecretDestination,
 ): boolean {
+  // A login works on its site with or without "www.", where sites redirect between the two.
+  const sameOrigin =
+    left.origin === right.origin ||
+    (left.auth.type === "login" && sameLoginSite(left.origin, right.origin));
   return (
     left.name === right.name &&
-    left.origin === right.origin &&
+    sameOrigin &&
     JSON.stringify(left.auth) === JSON.stringify(right.auth)
   );
 }
@@ -520,8 +525,12 @@ export async function findBotSecret(prisma: PrismaClient, scope: BotSecretScope,
  */
 export async function findSiteLogin(prisma: PrismaClient, scope: BotSecretScope, origin: string) {
   if (!origin.startsWith("https://")) return null;
+  const variant = loginSiteVariant(origin);
   const rows = await prisma.vaultCredential.findMany({
-    where: { ...(await vaultFields(prisma, scope)), origin },
+    where: {
+      ...(await vaultFields(prisma, scope)),
+      origin: { in: variant ? [origin, variant] : [origin] },
+    },
     select: metadata,
   });
   // A row saved before today's name or site rules can't be filled, so it doesn't count.

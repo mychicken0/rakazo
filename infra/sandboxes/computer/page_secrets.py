@@ -414,7 +414,12 @@ EVAL_HELPERS = r"""
           : code ? "A code can only be filled on HTTPS. Open the site with browser_navigate, then fill again."
           : "Website logins can only be filled on HTTPS. Open the saved site with browser_navigate, then fill again.");
       }
-      if (location.origin !== saved.origin) {
+      // A login also fits its site's www host and back, where sites redirect between the two.
+      const site = (host) => host.toLowerCase().replace(/^www\./, "");
+      const sameSite = location.origin === saved.origin || (!card && !code &&
+        location.protocol === saved.protocol && location.port === saved.port &&
+        site(location.hostname) === site(saved.hostname));
+      if (!sameSite) {
         throw refused(card
           ? "The page is not on the merchant's site for this purchase. Open the merchant's checkout with browser_navigate, then fill again."
           : code ? "The page is not on the site this code was asked for. Open that site with browser_navigate, then fill again."
@@ -690,11 +695,13 @@ def frame_site_check(client: CdpClient, frame: tuple[str, str, int], step: dict[
     """A saved login or card goes into a frame only when the frame itself is on its site, an HTTPS page
     inside HTTPS pages. The fill checks the frame's site again in the same evaluation."""
     session, _, world = frame
-    found = call_with(client, session, world, "function (origin) { let saved = null; try { saved = new URL(origin)"
-                      ".origin; } catch { /* refused below */ } return { origin: location.origin, same: "
-                      "location.origin === saved, sandboxed: self.origin !== location.origin, secure: "
-                      "location.protocol === 'https:' && window.isSecureContext !== false }; }", step["origin"])
     login = step.get("field") in ("username", "password")
+    found = call_with(client, session, world, "function (origin, login) { let saved = null; try { saved = new URL(origin)"
+                      "; } catch { /* refused below */ } const site = (host) => host.toLowerCase().replace(/^www\\./, '');"
+                      " return { origin: location.origin, same: !!saved && (location.origin === saved.origin || (login"
+                      " && location.protocol === saved.protocol && location.port === saved.port && site(location.hostname)"
+                      " === site(saved.hostname))), sandboxed: self.origin !== location.origin, secure: "
+                      "location.protocol === 'https:' && window.isSecureContext !== false }; }", step["origin"], login)
     if not isinstance(found, dict) or not found.get("secure"):
         raise Refused("Website logins can only be filled on HTTPS, and this field's frame is not an HTTPS page "
                       "inside HTTPS pages." if login else
