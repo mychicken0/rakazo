@@ -212,7 +212,12 @@ MEDIA_GENERATION_VIDEO_MODEL=fal-ai/wan/v2.2-a14b/text-to-video
 ```
 
 `MEDIA_GENERATION_PROVIDER` accepts `disabled` (the default), `fal`, or `fake`
-(for offline testing only). The base URL is optional and defaults to the URL above.
+(for offline testing only).
+
+`codex` makes images through the ChatGPT sign-in already connected in Models
+settings, on that subscription, with no media key of its own. It has no video model.
+`MEDIA_GENERATION_IMAGE_MODEL` optionally picks the Codex model that runs the
+image tool. The base URL is optional and defaults to the URL above.
 Only set the image/video model fields for capabilities you want enabled. Compatible
 servers can use the same connection fields; models must support the corresponding
 fal queue API and Flux/Wan input and output shapes. Credentials stay on the server. Set these in

@@ -607,7 +607,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   // resolution alike, so a list call warms the run path in this process.
   const codexCatalog = new CodexCatalogCache();
   // One instance: chat runs submit videos and, in single-process mode, background polls finish them.
-  const mediaGeneration = createMediaGenerationProvider();
+  const mediaGeneration = createMediaGenerationProvider(process.env, {
+    prisma,
+    secretStore: secrets,
+  });
   const { executor, jobHandlers } = createRunRuntime(runtimeEnv, connectors, {
     billingEnabled: modelCreditsEnabled,
     mediaGeneration,

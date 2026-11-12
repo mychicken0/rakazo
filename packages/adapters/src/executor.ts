@@ -249,7 +249,12 @@ async function verbatimMcpServersForRun(
 export function createRunExecutor(executorDeps: ExecutorDeps) {
   const contextStrategy = executorDeps.contextStrategy ?? DEFAULT_CONTEXT_STRATEGY;
   const web = executorDeps.web ?? createWebProvider();
-  const mediaGeneration = executorDeps.mediaGeneration ?? createMediaGenerationProvider();
+  const mediaGeneration =
+    executorDeps.mediaGeneration ??
+    createMediaGenerationProvider(process.env, {
+      prisma: executorDeps.prisma,
+      secretStore: executorDeps.secretStore,
+    });
   const paidServices = executorDeps.paidServices ?? createPaidServiceProvider();
   const browser =
     executorDeps.browser ?? createBrowserProvider(undefined, { sandbox: executorDeps.sandbox });

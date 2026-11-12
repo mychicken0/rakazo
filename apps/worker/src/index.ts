@@ -192,7 +192,10 @@ async function main() {
   const cloudAgent = createCloudAgentConnection();
   const paymentWallet = await createPaymentWalletProvider();
   // One instance: the executor submits videos and background polls finish them.
-  const mediaGeneration = createMediaGenerationProvider();
+  const mediaGeneration = createMediaGenerationProvider(process.env, {
+    prisma,
+    secretStore: secrets,
+  });
   // Shared with the reconciler so a stuck wait uses the same push path as a finish notice.
   const pushTokens = new PrismaPushTokenStore(prisma, env.encryptionKey);
   const notifications = new ExpoPushProvider(pushTokens, {
