@@ -60,6 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     x11-utils \
     x11-xserver-utils \
     imagemagick \
+    librsvg2-bin \
     novnc \
     websockify \
     python3 \
