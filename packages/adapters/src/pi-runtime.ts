@@ -107,6 +107,7 @@ import {
   unresolvedTurnCheckpointCalls,
 } from "./turn-checkpoint.js";
 import { midTaskMessageFromPrompt, midTaskMessagePrompt } from "./user-progress.js";
+import { withWellFormedPayload } from "./well-formed-payload.js";
 
 const running = new Map<string, { controller: AbortController; work: Promise<void> }>();
 // Some OpenAI-compatible models return EOS immediately after a tool result
@@ -463,7 +464,10 @@ export class PiAgentRuntime implements AgentRuntime {
                 target.models,
                 target.model,
                 ctx,
-                withCloudflareAuth(target.config, withDetailedReasoningSummary(options)),
+                withCloudflareAuth(
+                  target.config,
+                  withWellFormedPayload(withDetailedReasoningSummary(options)),
+                ),
                 target.config.maxTokens,
                 () => target.credentials?.accessToken ?? target.apiKey,
                 (preparedOptions) =>

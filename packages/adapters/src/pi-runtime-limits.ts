@@ -69,7 +69,10 @@ export function modelStreamIdleTimeoutMs(): number {
 export const TOOL_RESULT_TEXT_LIMIT = 12_000;
 
 export function clipToolResultText(text: string, limit: number = TOOL_RESULT_TEXT_LIMIT): string {
-  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+  if (text.length <= limit) return text;
+  // Never end on the first half of a surrogate pair.
+  const end = /[\uD800-\uDBFF]/.test(text.charAt(limit - 1)) ? limit - 1 : limit;
+  return `${text.slice(0, end)}…`;
 }
 
 /**
