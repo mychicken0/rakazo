@@ -76,6 +76,8 @@ export interface AppEnv {
   computerSettingsEnabled: boolean;
   /** Operator menu links that frame a same-origin page (RAKAZO_NAV_LINKS). */
   navLinks?: NavLink[];
+  /** Shared folder for files over the upload limit, offered in the composer (LARGE_FILE_URL). */
+  largeFileUrl?: string;
   /** Verified accounts that review plugin submissions, add stdio MCP servers, and grant access
    * (RAKAZO_ADMIN_EMAILS), lowercased. */
   adminEmails: string[];
@@ -271,6 +273,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     userDevicesEnabled: source.USER_DEVICES_ENABLED !== "false",
     computerSettingsEnabled: source.COMPUTER_SETTINGS_ENABLED === "true",
     navLinks: parseNavLinks(source.RAKAZO_NAV_LINKS),
+    largeFileUrl: httpsUrl(source.LARGE_FILE_URL),
     adminEmails: list(source.RAKAZO_ADMIN_EMAILS).map((email) => email.toLowerCase()),
     ...phoneCallSettings(source),
     maxUploadSizeBytes: uploadSizeFromEnv(source),
@@ -446,6 +449,15 @@ function inboundEmailFromEnv(source: NodeJS.ProcessEnv): AppEnv["inboundEmail"] 
   if (secret.length < 32) throw new Error("INBOUND_EMAIL_SECRET must be at least 32 characters");
   const relayArcDomain = optional(source.INBOUND_EMAIL_RELAY_ARC_DOMAIN)?.toLowerCase();
   return { domain, secret, ...(relayArcDomain ? { relayArcDomain } : {}) };
+}
+
+/** An https link, or undefined when unset; anything else stops startup. */
+function httpsUrl(value: string | undefined): string | undefined {
+  const raw = optional(value);
+  if (!raw) return undefined;
+  if (!URL.canParse(raw) || new URL(raw).protocol !== "https:")
+    throw new Error("LARGE_FILE_URL must be an https URL");
+  return raw;
 }
 
 function optional(value: string | undefined): string | undefined {

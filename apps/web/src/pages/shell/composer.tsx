@@ -1,4 +1,4 @@
-import { useLingui } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type { AgentSkillCatalogEntry, ThreadMessage } from "@rakazo/contracts";
 import type { ComposerMention, ComposerMentionRange, SlashActionId } from "@rakazo/core";
 import {
@@ -65,7 +65,7 @@ import { useComposerFileDrop } from "./use-composer-file-drop";
 import { useComposerLayout } from "./use-composer-layout";
 import { useComposerTriggers } from "./use-composer-triggers";
 
-const ATTACHMENT_ACCEPT = attachmentPickerAccept(navigator.userAgent);
+const ATTACHMENT_ACCEPT = attachmentPickerAccept();
 const COMPOSER_TEXT = "rk-scroll whitespace-pre-wrap break-words px-0.5 py-0.5 text-body-lg";
 const ComposerBody = memo(function Composer({
   artifactTarget,
@@ -74,6 +74,7 @@ const ComposerBody = memo(function Composer({
   disabled,
   pendingAttachments,
   attachmentNotice,
+  attachmentNoticeLink,
   sendError,
   imageConfirmation,
   onDraftEdited,
@@ -110,6 +111,8 @@ const ComposerBody = memo(function Composer({
   disabled?: boolean;
   pendingAttachments: PendingAttachment[];
   attachmentNotice: string | null;
+  /** Where a file over the limit can go instead. */
+  attachmentNoticeLink?: string;
   sendError: string | null;
   imageConfirmation?: boolean;
   onDraftEdited?: () => void;
@@ -633,6 +636,19 @@ const ComposerBody = memo(function Composer({
       {attachmentNotice ? (
         <div className="mb-3 rounded-[14px] border border-warning/40 bg-warning/10 px-4 py-2 text-body-sm text-warning">
           {attachmentNotice}
+          {attachmentNoticeLink ? (
+            <>
+              {" "}
+              <a
+                href={attachmentNoticeLink}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium underline underline-offset-2"
+              >
+                <Trans>Put large files in the shared folder</Trans>
+              </a>
+            </>
+          ) : null}
         </div>
       ) : null}
       <PendingAttachmentChips

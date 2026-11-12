@@ -115,7 +115,9 @@ export function useComposerActions({
     setSendFailure(message === null ? null : { message, imageConfirmation: false });
   }, []);
   const uploadedSendArtifacts = useRef(new Map<string, WeakMap<File, string>>());
-  const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
+  const [attachmentNotice, setAttachmentNotice] = useState<{ text: string; link?: string } | null>(
+    null,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dismissedRunErrorIds, setDismissedRunErrorIds] =
     useState<ReadonlySet<string>>(readSeenRunErrorIds);
@@ -282,6 +284,7 @@ export function useComposerActions({
       const existing = attachmentsForThread(pendingAttachments, threadKey);
       const next: PendingAttachment[] = [];
       const skipped: string[] = [];
+      let oversized = false;
       for (const file of Array.from(files)) {
         if (existing.length + next.length >= ATTACHMENT_MAX_COUNT) {
           skipped.push(t`${file.name} (max ${ATTACHMENT_MAX_COUNT} attachments)`);
@@ -289,16 +292,13 @@ export function useComposerActions({
         }
         // Raster photos get a chance to shrink before server-side size validation.
         if (file.size > attachmentMaxBytes(bootstrapMe) && !canPrepareImage(file)) {
+          oversized = true;
           skipped.push(
             t`${file.name} (over ${attachmentSizeLabel(attachmentMaxBytes(bootstrapMe))})`,
           );
           continue;
         }
         const mimeType = inferAttachmentMimeType(file.name, file.type);
-        if (!mimeType) {
-          skipped.push(file.name);
-          continue;
-        }
         next.push({
           // A client id, not file metadata: two picks of equal metadata are separate attachments.
           id: newClientId(),
@@ -308,7 +308,16 @@ export function useComposerActions({
         });
       }
       if (next.length) setPendingAttachments((current) => [...current, ...next]);
-      setAttachmentNotice(skipped.length ? t`Skipped ${skipped.join(", ")}` : null);
+      // Files over the limit can still reach the bot through the operator's shared folder.
+      const largeFileUrl = oversized ? bootstrapMe?.largeFileUrl : undefined;
+      setAttachmentNotice(
+        skipped.length
+          ? {
+              text: t`Skipped ${skipped.join(", ")}`,
+              ...(largeFileUrl ? { link: largeFileUrl } : {}),
+            }
+          : null,
+      );
       if (fileInputRef.current) fileInputRef.current.value = "";
       return next.length > 0;
     },
@@ -609,7 +618,8 @@ export function useComposerActions({
 
   return {
     activePendingAttachments,
-    attachmentNotice,
+    attachmentNotice: attachmentNotice?.text ?? null,
+    attachmentNoticeLink: attachmentNotice?.link,
     fileInputRef,
     onAttachmentPick,
     removeAttachment,

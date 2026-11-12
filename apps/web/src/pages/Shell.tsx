@@ -1160,6 +1160,7 @@ function SpaceShell() {
               disabled={Boolean(recordingSkill)}
               pendingAttachments={composer.activePendingAttachments}
               attachmentNotice={composer.attachmentNotice}
+              attachmentNoticeLink={composer.attachmentNoticeLink}
               sendError={sendError}
               imageConfirmation={composer.imageConfirmation}
               onDraftEdited={composer.clearImageConfirmation}

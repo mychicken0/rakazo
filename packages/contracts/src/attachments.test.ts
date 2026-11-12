@@ -42,8 +42,9 @@ describe("attachment contracts", () => {
       MessageBlock.parse({ kind: "file", artifactId: "audio-1", mimeType, name: "clip", size: 42 }),
     ).toMatchObject({ kind: "file", mimeType });
   });
-  it("rejects unknown audio", () => {
-    expect(isAllowedAttachmentMimeType("audio/flac")).toBe(false);
+  it("keeps audio it cannot play as a plain file", () => {
+    expect(isAllowedAttachmentMimeType("audio/flac")).toBe(true);
+    expect(isAllowedAttachmentMimeType("application/x-msdownload")).toBe(false);
     expect(isAttachmentAudioMimeType("audio/flac")).toBe(false);
     expect(isAttachmentAudioMimeType("video/mp4")).toBe(false);
   });

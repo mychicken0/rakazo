@@ -436,8 +436,11 @@ describe("configured artifact upload limit", () => {
         mimeType: "audio/flac",
         contentBase64: "YXVkaW8=",
       }),
-    ).rejects.toThrow("Unsupported attachment type");
-    expect(put).not.toHaveBeenCalled();
+    ).rejects.toBe(reachedStorage);
+    expect(put).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: "audio/flac" }),
+      expect.anything(),
+    );
   });
   it("rejects oversized attachments before storage and accepts uploads above the old cap", async () => {
     const stored = new Error("reached storage");
@@ -537,14 +540,20 @@ describe("storeInboundAttachment", () => {
     );
   });
 
-  it("rejects unsupported types and oversize downloads before storage", async () => {
+  it("keeps unknown types as plain files and rejects oversize downloads before storage", async () => {
     const { put, store } = setup();
     const fetch = vi.fn(async () => new Uint8Array(9));
-    await expect(
-      store({ name: "a.exe", mimeType: "application/x-msdownload", fetch }),
-    ).rejects.toThrow("Unsupported");
     await expect(store({ name: "a.png", mimeType: "image/png", fetch })).rejects.toThrow("limit");
     expect(put).not.toHaveBeenCalled();
+    fetch.mockResolvedValueOnce(new Uint8Array(8));
+    await expect(
+      store({ name: "a.exe", mimeType: "application/x-msdownload", fetch }),
+    ).rejects.toBe(reachedStorage);
+    expect(put).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: "application/octet-stream" }),
+      expect.anything(),
+    );
+    put.mockClear();
     fetch.mockResolvedValueOnce(new Uint8Array(8));
     await expect(store({ name: "a.png", mimeType: "image/png", fetch })).rejects.toBe(
       reachedStorage,

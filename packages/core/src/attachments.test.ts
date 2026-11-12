@@ -52,15 +52,27 @@ describe("attachment helpers", () => {
   ])("normalizes %s without needing an extension", (alias, expected) => {
     expect(inferAttachmentMimeType("clip", alias)).toBe(expected);
   });
-  it("uses M4A's container for an AAC codec report but does not allow raw AAC or FLAC", () => {
+  it("uses M4A's container for an AAC codec report and keeps other audio as itself", () => {
     expect(inferAttachmentMimeType("clip.m4a", "audio/aac")).toBe("audio/mp4");
     expect(inferAttachmentMimeType("clip.m4a", "audio/x-m4a")).toBe("audio/mp4");
-    expect(inferAttachmentMimeType("clip.aac", "audio/aac")).toBeNull();
-    expect(inferAttachmentMimeType("clip.flac", "audio/flac")).toBeNull();
-    expect(attachmentExtensionForMimeType("audio/flac")).toBe("");
+    expect(inferAttachmentMimeType("clip.aac", "audio/aac")).toBe("audio/aac");
+    expect(inferAttachmentMimeType("clip.flac", "audio/flac")).toBe("audio/flac");
+    expect(attachmentExtensionForMimeType("audio/flac")).toBe(".flac");
     for (const reportedType of ["__proto__", "constructor", "toString"]) {
-      expect(inferAttachmentMimeType("clip", reportedType)).toBeNull();
+      expect(inferAttachmentMimeType("clip", reportedType)).toBe("application/octet-stream");
     }
+  });
+
+  it("keeps any file, naming known ones by extension and the rest as plain files", () => {
+    expect(inferAttachmentMimeType("talk.pptx", "")).toBe(
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
+    expect(inferAttachmentMimeType("logo.svg")).toBe("image/svg+xml");
+    expect(inferAttachmentMimeType("clip.MOV", "application/octet-stream")).toBe("video/quicktime");
+    expect(inferAttachmentMimeType("setup.exe", "application/x-msdownload")).toBe(
+      "application/octet-stream",
+    );
+    expect(attachmentExtensionForMimeType("application/octet-stream")).toBe("");
   });
   it("enforces configured limits before and after base64 decoding", () => {
     const limit = 1024 * 1024;
@@ -75,7 +87,8 @@ describe("attachment helpers", () => {
   });
   it("accepts zip archives and rejects unsupported mime types and empty payloads", () => {
     expect(() => validateAttachmentMimeType("application/zip")).not.toThrow();
-    expect(() => validateAttachmentMimeType("application/octet-stream")).toThrow(
+    expect(() => validateAttachmentMimeType("application/octet-stream")).not.toThrow();
+    expect(() => validateAttachmentMimeType("application/x-msdownload")).toThrow(
       AttachmentValidationError,
     );
     expect(() => decodeAttachmentBase64("")).toThrow(AttachmentValidationError);

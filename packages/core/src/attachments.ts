@@ -301,6 +301,44 @@ const EXTENSION_MIME_TYPES: Record<string, AttachmentMimeType> = {
   ".htm": "text/html",
   ".json": "application/json",
   ".zip": "application/zip",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".mkv": "video/x-matroska",
+  ".avi": "video/x-msvideo",
+  ".flac": "audio/flac",
+  ".aac": "audio/aac",
+  ".aif": "audio/aiff",
+  ".aiff": "audio/aiff",
+  ".svg": "image/svg+xml",
+  ".heic": "image/heic",
+  ".heif": "image/heif",
+  ".avif": "image/avif",
+  ".tif": "image/tiff",
+  ".tiff": "image/tiff",
+  ".bmp": "image/bmp",
+  ".psd": "image/vnd.adobe.photoshop",
+  ".dxf": "image/vnd.dxf",
+  ".dwg": "image/vnd.dwg",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".odt": "application/vnd.oasis.opendocument.text",
+  ".ods": "application/vnd.oasis.opendocument.spreadsheet",
+  ".odp": "application/vnd.oasis.opendocument.presentation",
+  ".rtf": "application/rtf",
+  ".epub": "application/epub+zip",
+  ".xml": "application/xml",
+  ".yaml": "application/yaml",
+  ".yml": "application/yaml",
+  ".7z": "application/x-7z-compressed",
+  ".rar": "application/vnd.rar",
+  ".tar": "application/x-tar",
+  ".gz": "application/gzip",
+  ".tgz": "application/gzip",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".woff2": "font/woff2",
 };
 
 const MIME_TYPE_EXTENSIONS: Record<AttachmentMimeType, string> = {
@@ -322,6 +360,41 @@ const MIME_TYPE_EXTENSIONS: Record<AttachmentMimeType, string> = {
   "text/html": ".html",
   "application/json": ".json",
   "application/zip": ".zip",
+  "video/quicktime": ".mov",
+  "video/webm": ".webm",
+  "video/x-matroska": ".mkv",
+  "video/x-msvideo": ".avi",
+  "audio/flac": ".flac",
+  "audio/aac": ".aac",
+  "audio/aiff": ".aif",
+  "image/svg+xml": ".svg",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+  "image/avif": ".avif",
+  "image/tiff": ".tif",
+  "image/bmp": ".bmp",
+  "image/vnd.adobe.photoshop": ".psd",
+  "image/vnd.dxf": ".dxf",
+  "image/vnd.dwg": ".dwg",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.ms-powerpoint": ".ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ".pptx",
+  "application/vnd.oasis.opendocument.text": ".odt",
+  "application/vnd.oasis.opendocument.spreadsheet": ".ods",
+  "application/vnd.oasis.opendocument.presentation": ".odp",
+  "application/rtf": ".rtf",
+  "application/epub+zip": ".epub",
+  "application/xml": ".xml",
+  "application/yaml": ".yaml",
+  "application/x-7z-compressed": ".7z",
+  "application/vnd.rar": ".rar",
+  "application/x-tar": ".tar",
+  "application/gzip": ".gz",
+  "font/ttf": ".ttf",
+  "font/otf": ".otf",
+  "font/woff2": ".woff2",
+  "application/octet-stream": "",
 };
 
 /** Short file-type badge, as a file's extension reads ("TXT", "MD", "PDF"). */
@@ -332,10 +405,8 @@ export function artifactTypeLabel(mimeType: string): string {
   return (slash === -1 ? mimeType : mimeType.slice(slash + 1)).toUpperCase().slice(0, 6);
 }
 
-export function inferAttachmentMimeType(
-  name: string,
-  reportedType?: string,
-): AttachmentMimeType | null {
+/** A file's type for storage; one no list knows is kept as a plain file, never refused. */
+export function inferAttachmentMimeType(name: string, reportedType?: string): AttachmentMimeType {
   if (
     reportedType === "application/x-zip-compressed" ||
     reportedType === "application/x-zip" ||
@@ -359,12 +430,20 @@ export function inferAttachmentMimeType(
   if (extensionType === "text/markdown" && (!reportedType || reportedType === "text/plain")) {
     return extensionType;
   }
+  // audio/aac describes an M4A's codec; the container is MP4.
+  if (extensionType === "audio/mp4" && reportedType === "audio/aac") return extensionType;
   // Windows reports .csv as an Excel file when Excel is installed.
   if (extensionType === "text/csv" && reportedType === "application/vnd.ms-excel") {
     return extensionType;
   }
-  if (reportedType && isAllowedAttachmentMimeType(reportedType)) return reportedType;
-  return extensionType ?? null;
+  // A generic report says nothing about the file; its extension does.
+  if (
+    reportedType &&
+    reportedType !== "application/octet-stream" &&
+    isAllowedAttachmentMimeType(reportedType)
+  )
+    return reportedType;
+  return extensionType ?? "application/octet-stream";
 }
 
 export function attachmentExtensionForMimeType(mimeType: string): string {

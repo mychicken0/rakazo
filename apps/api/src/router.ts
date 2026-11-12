@@ -135,6 +135,7 @@ export interface RouterDeps {
     inboundEmailDomain?: string;
     ticketBoardEnabled?: boolean;
     navLinks?: NavLink[];
+    largeFileUrl?: string;
     adminEmails?: string[];
     phoneCallsEnabled?: boolean;
     phoneCallRingSeconds?: number;
