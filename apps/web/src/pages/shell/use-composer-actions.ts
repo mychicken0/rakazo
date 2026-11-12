@@ -462,7 +462,8 @@ export function useComposerActions({
             const done = await pending.large.upload.catch(() => {
               throw new Error(t`Upload failed: ${pending.file.name}`);
             });
-            largeLinks.push(`📎 [${done.name}](${done.link}) · ${formatFileSize(done.size)}`);
+            // Plain text, not Markdown: the sender's bubble shows it as written, with the link clickable.
+            largeLinks.push(`📎 ${done.name} (${formatFileSize(done.size)})\n${done.link}`);
             continue;
           }
           const existing = uploaded.get(pending.file);

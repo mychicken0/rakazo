@@ -1036,6 +1036,7 @@ function SpaceShell() {
       {/* Keep the composer's z-index inside the chat so phone overlays like the side panel cover it. */}
       <main
         data-space-switch="main"
+        data-chat-column
         aria-hidden={mobileSidebarOpen || undefined}
         inert={mobileSidebarOpen}
         className="isolate flex min-w-0 flex-1 flex-col bg-background"
@@ -1050,7 +1051,7 @@ function SpaceShell() {
         ) : null}
         <CallReturnBar />
         {/* The header floats so the transcript scrolls under its buttons. */}
-        <div ref={chatColumnRef} data-chat-column className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={chatColumnRef} className="relative flex min-h-0 flex-1 flex-col">
           {/* Only the pills take input; the gaps pass clicks and scrolling to the transcript. */}
           <div aria-hidden="true" className="app-drag absolute inset-x-0 top-0 z-10 h-3" />
           {findOpen ? (
