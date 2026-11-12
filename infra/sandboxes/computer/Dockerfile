@@ -86,6 +86,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xsel \
     poppler-utils \
     pandoc \
+    ffmpeg \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-tha \
     python3-openpyxl \
     ripgrep \
     fd-find \

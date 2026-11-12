@@ -1,5 +1,5 @@
 import type { MessageBlock } from "@rakazo/contracts";
-import { ATTACHMENT_MAX_BYTES } from "@rakazo/contracts";
+import { ATTACHMENT_MAX_BYTES, isAttachmentImageMimeType } from "@rakazo/contracts";
 import {
   attachmentExtensionForMimeType,
   inferAttachmentMimeType,
@@ -13,10 +13,12 @@ import { desktopGuardApplies, desktopProtectionGuardMessage } from "./desktop-co
 import { protectedActivateScriptWriteRefusal } from "./desktop-guard-words.js";
 import { generateMediaFromTool } from "./media-generation-tools.js";
 import { mediaDelivery, scheduleMediaPoll } from "./media-video-poll.js";
+import { MODEL_CANNOT_SEE_MESSAGE } from "./model-vision.js";
 import type { RunContext } from "./run-context.js";
 import { persistMessageInTransaction, runLeaseFor } from "./run-messages.js";
 import type { ToolCall, ToolHandlers } from "./run-tool-gate.js";
 import { recordComputerAction } from "./run-tools-computer.js";
+import { viewWorkspaceVideo } from "./run-tools-media-view.js";
 import { attachWorkspaceFileToThread } from "./thread-artifacts.js";
 import { textContentArg } from "./tool-text.js";
 import type { RunWorkspace } from "./workspace-file-tools.js";
@@ -95,6 +97,11 @@ export const fileTools: ToolHandlers = {
   async read_file(ctx, call) {
     const { deps } = ctx;
     const { args } = call;
+    const mediaPath = String(args.path ?? "");
+    const mediaType = inferAttachmentMimeType(mediaPath);
+    if (isAttachmentImageMimeType(mediaType)) return viewWorkspaceImage(ctx, call, mediaPath);
+    // The runtime gives models text and images only, so a video arrives as frames.
+    if (mediaType.startsWith("video/")) return viewWorkspaceVideo(ctx, call, mediaPath);
     const workspace = runWorkspace(ctx, call);
     return readFileFromTool(deps.sandbox, workspace, args);
   },
@@ -186,6 +193,74 @@ export const fileTools: ToolHandlers = {
     }
   },
 };
+
+/** The largest image read from a workspace; bigger photos are not something to look at whole. */
+const MAX_VIEW_IMAGE_BYTES = 40 * 1024 * 1024;
+/** What every vision model accepts: under ~3.5 MB and 2000 px on the long side. */
+const VIEW_IMAGE_MAX_EDGE = 2000;
+const VIEW_IMAGE_MAX_BYTES = 3_500_000;
+
+/**
+ * Shows an image file from the workspace to the model, shrunk to what vision models accept, so a
+ * bot can look at frames, renders and photos it saved instead of only reading their bytes.
+ */
+async function viewWorkspaceImage(ctx: RunContext, call: ToolCall, filePath: string) {
+  const { deps, bot, context } = ctx;
+  if (!ctx.computer.acceptsImages) return { error: MODEL_CANNOT_SEE_MESSAGE, path: filePath };
+  let bytes: Uint8Array;
+  try {
+    bytes = await deps.sandbox.readFile(
+      await ctx.computer.get("tool", call.name),
+      resolveBotWorkspacePath(ctx.computer.mode, bot.id, filePath),
+      context,
+      { maxBytes: MAX_VIEW_IMAGE_BYTES },
+    );
+  } catch {
+    return { error: "file not found, unreadable, or larger than 40 MB", path: filePath };
+  }
+  try {
+    const { default: sharp } = await import("sharp");
+    // Animated GIFs show their first frame; orientation follows the photo's EXIF.
+    const image = sharp(bytes, { limitInputPixels: 268_402_689 }).rotate();
+    const meta = await image.metadata();
+    const width = meta.autoOrient?.width ?? meta.width ?? 0;
+    const height = meta.autoOrient?.height ?? meta.height ?? 0;
+    const fits =
+      bytes.byteLength <= VIEW_IMAGE_MAX_BYTES &&
+      Math.max(width, height) <= VIEW_IMAGE_MAX_EDGE &&
+      ["png", "jpeg", "webp"].includes(meta.format ?? "");
+    const shown = fits
+      ? { data: Buffer.from(bytes), mimeType: `image/${meta.format}` }
+      : {
+          data: await image
+            .resize(VIEW_IMAGE_MAX_EDGE, VIEW_IMAGE_MAX_EDGE, {
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .flatten({ background: "white" })
+            .jpeg({ quality: 85 })
+            .toBuffer(),
+          mimeType: "image/jpeg",
+        };
+    const details = {
+      path: filePath,
+      width,
+      height,
+      bytes: bytes.byteLength,
+      ...(fits ? {} : { shownAs: "a smaller JPEG copy" }),
+    };
+    return {
+      kind: "agent_tool_result",
+      content: [
+        { type: "text", text: JSON.stringify(details) },
+        { type: "image", data: shown.data.toString("base64"), mimeType: shown.mimeType },
+      ],
+      details,
+    };
+  } catch {
+    return { error: "this file could not be read as an image", path: filePath };
+  }
+}
 
 /**
  * Copies a generated image or finished video into the bot's workspace under `generated/`, and
