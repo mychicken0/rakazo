@@ -1,6 +1,7 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { ATTACHMENT_MAX_BYTES } from "@rakazo/contracts";
 import {
+  attachmentExtensionForMimeType,
   inferAttachmentMimeType,
   isBackgroundRunTrigger,
   messageBlockForArtifact,
@@ -62,6 +63,11 @@ export async function callMediaTool(ctx: RunContext, call: ToolCall, recoverOnly
       operationId: executionId,
     }),
   });
+  // The bot gets its own copy too, so it can edit, convert or reuse what it made.
+  if (result && "artifactId" in result && result.artifactId && result.status === "completed") {
+    const path = await copyGeneratedMedia(ctx, call, result.artifactId);
+    if (path) return { ...result, path };
+  }
   // The run may end before the video does, so a background poll posts it when it is ready.
   if (
     result &&
@@ -180,6 +186,38 @@ export const fileTools: ToolHandlers = {
     }
   },
 };
+
+/**
+ * Copies a generated image or finished video into the bot's workspace under `generated/`, and
+ * returns that path, or undefined when it cannot (the chat still has the file either way).
+ */
+async function copyGeneratedMedia(
+  ctx: RunContext,
+  call: ToolCall,
+  artifactId: string,
+): Promise<string | undefined> {
+  const { deps, bot, context } = ctx;
+  if (!deps.artifacts) return undefined;
+  try {
+    const row = await deps.prisma.artifact.findUnique({
+      where: { id: artifactId },
+      select: { storageKey: true, mimeType: true, spaceId: true },
+    });
+    if (!row || row.spaceId !== context.spaceId) return undefined;
+    const bytes = await deps.artifacts.get(row.storageKey, context);
+    const path = `generated/${artifactId}${attachmentExtensionForMimeType(row.mimeType)}`;
+    ctx.computer.checkpoint.markDirty();
+    await deps.sandbox.writeFile(
+      await ctx.computer.get("tool", call.name),
+      { path: resolveBotWorkspacePath(ctx.computer.mode, bot.id, path), content: bytes },
+      context,
+    );
+    return path;
+  } catch (error) {
+    getLogger().warn("generated media copy failed", { error: String(error) });
+    return undefined;
+  }
+}
 
 /** Read a file from this bot's computer that can become an attachment, without saving it. */
 export async function readWorkspaceFile(
