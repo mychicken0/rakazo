@@ -582,7 +582,11 @@ export const Transcript = memo(function Transcript({
               ) : null}
               <div
                 data-message-id={message.id}
-                className={peerReceipt ? "relative" : "group/message relative hover:z-[1]"}
+                // Focusable so a tap on touch screens shows this message's actions.
+                tabIndex={peerReceipt ? undefined : -1}
+                className={
+                  peerReceipt ? "relative" : "group/message relative outline-none hover:z-[1]"
+                }
               >
                 <div
                   className={

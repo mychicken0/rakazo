@@ -9,10 +9,11 @@ export function MessageHoverMetadata({
   pinned?: boolean;
   children: ReactNode;
 }) {
-  // Touch shows the rail in-flow below the bubble; hover-capable pointers reveal it beside the bubble on demand.
+  // Touch shows the rail in-flow below a message once it is tapped; hover-capable pointers reveal it
+  // beside the bubble on demand.
   const reveal = pinned
     ? "pointer-events-auto opacity-100"
-    : "pointer-events-auto opacity-100 [@media(hover:hover)_and_(pointer:fine)]:pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover/message:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:group-hover/message:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:focus-within:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:focus-within:opacity-100";
+    : "pointer-events-auto opacity-100 [@media(hover:none)]:hidden [@media(hover:none)]:group-focus-within/message:flex [@media(hover:hover)_and_(pointer:fine)]:pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover/message:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:group-hover/message:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:focus-within:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:focus-within:opacity-100";
 
   return (
     <div
