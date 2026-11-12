@@ -4,6 +4,7 @@ import {
   effectiveModelRole,
   hasHostedModelCredits,
   isAutoReviewCheckerConfigured,
+  isPushServiceEndpoint,
   loadUserIncomingCalls,
   PushSessionEndedError,
   settleCallRequest,
@@ -411,6 +412,29 @@ export function accountRoutes(ctx: RouterContext) {
             input.token,
             sessionId,
             input.presentation,
+          );
+        } catch (error) {
+          if (error instanceof PushSessionEndedError) throw new ORPCError("UNAUTHORIZED");
+          throw error;
+        }
+        return { ok: true as const };
+      }),
+      webPushKey: authed.notifications.webPushKey.handler(async () => ({
+        publicKey: deps.webPush?.publicKey ?? null,
+      })),
+      registerWebPush: authed.notifications.registerWebPush.handler(async ({ context, input }) => {
+        if (!context.sessionId) throw new ORPCError("UNAUTHORIZED");
+        if (!deps.webPush || !isPushServiceEndpoint(input.endpoint))
+          throw new ORPCError("BAD_REQUEST");
+        try {
+          await deps.pushTokens.saveDevice?.(
+            context.actor.userId,
+            {
+              deviceId: input.deviceId,
+              platform: "web",
+              webPush: { endpoint: input.endpoint, p256dh: input.p256dh, auth: input.auth },
+            },
+            context.sessionId,
           );
         } catch (error) {
           if (error instanceof PushSessionEndedError) throw new ORPCError("UNAUTHORIZED");

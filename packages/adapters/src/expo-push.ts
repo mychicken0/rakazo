@@ -13,6 +13,7 @@ import type { IncomingCallPush, VoipPushProvider } from "./apns-voip.js";
 import { combineSignals } from "./connector-safety.js";
 import { credentialDigest } from "./credential-digest.js";
 import type { PushRecord, PushTokenStore } from "./push-token-store.js";
+import type { WebPushSender } from "./web-push.js";
 import { readBodyCapped, withAbort } from "./web-ssrf.js";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
@@ -177,6 +178,8 @@ export type ExpoPushOptions = {
   /** Sent as a bearer token when the Expo project enforces enhanced push security. */
   accessToken?: string;
   retryDelaysMs?: readonly number[];
+  /** Browsers that turned notifications on get the same alerts. */
+  webPush?: WebPushSender;
 };
 
 export class ExpoPushProvider implements NotificationProvider {
@@ -185,6 +188,7 @@ export class ExpoPushProvider implements NotificationProvider {
   private readonly jobs?: JobPublisher;
   private readonly accessToken?: string;
   private readonly retryDelaysMs: readonly number[];
+  private readonly webPush?: WebPushSender;
 
   constructor(
     private readonly tokens: PushTokenStore,
@@ -195,6 +199,7 @@ export class ExpoPushProvider implements NotificationProvider {
     this.jobs = options.jobs;
     this.accessToken = options.accessToken?.trim() || undefined;
     this.retryDelaysMs = options.retryDelaysMs ?? EXPO_PUSH_RETRY_DELAYS_MS;
+    this.webPush = options.webPush;
   }
 
   describe() {
@@ -207,7 +212,8 @@ export class ExpoPushProvider implements NotificationProvider {
   }
 
   async hasPushRecipient(userId: string): Promise<boolean> {
-    return Boolean(await this.deliverableToken(userId));
+    if (await this.deliverableToken(userId)) return true;
+    return (await this.webPush?.hasRecipient(userId)) ?? false;
   }
 
   async send(message: NotificationMessage, context: AdapterContext): Promise<void> {
@@ -307,6 +313,18 @@ export class ExpoPushProvider implements NotificationProvider {
    * Neither is an Expo acceptance, so callers must not record a reminder.
    */
   async deliver(message: NotificationMessage, context: AdapterContext): Promise<ExpoPushDelivery> {
+    const web = this.webPush?.send(message, context).catch((error: unknown) => {
+      getLogger().error("web push", error);
+      return false;
+    });
+    const app = await this.deliverToApp(message, context);
+    return app === "delivered" || (await web) ? "delivered" : "undeliverable";
+  }
+
+  private async deliverToApp(
+    message: NotificationMessage,
+    context: AdapterContext,
+  ): Promise<ExpoPushDelivery> {
     const registration = await this.deliverableToken(context.userId);
     if (!registration) return "undeliverable";
     const token = registration.token;

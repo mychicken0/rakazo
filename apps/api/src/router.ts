@@ -30,6 +30,7 @@ import type {
   RemoteConnectorDependencies,
   TicketChangeNotifier,
   verifyModelServesAgents,
+  WebPushSender,
   WorkActivities,
 } from "@rakazo/adapters";
 import type { Auth } from "@rakazo/auth";
@@ -67,6 +68,8 @@ export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
   pushTokens: PushTokenStore;
+  /** Absent when the server has no web push keys. */
+  webPush?: Pick<WebPushSender, "publicKey">;
   /** Absent when the deployment cannot update a phone's live status card. */
   workActivities?: Pick<WorkActivities, "register" | "registerStarts">;
   /** Stops a call's ring on the owner's other devices once it is settled. */

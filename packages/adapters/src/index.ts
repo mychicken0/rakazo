@@ -226,6 +226,7 @@ export * from "./voice-model-connection.js";
 export * from "./wakeup.js";
 export * from "./web-limits.js";
 export * from "./web-provider-factory.js";
+export * from "./web-push.js";
 export * from "./web-ssrf.js";
 export * from "./web-tools.js";
 export * from "./work-activity.js";

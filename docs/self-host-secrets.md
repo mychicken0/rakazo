@@ -88,6 +88,7 @@ From `.env.images.example` (images installer). Leave blank if unused:
 | `E2B_API_KEY` / `DAYTONA_API_KEY` / `BOAT_API_KEY`             | Remote computers when `SANDBOX_PROVIDER` is not `docker`                       |
 | `EMAIL_PROVIDER` / `EMAIL_API_KEY` / `SMTP_URL` / `EMAIL_FROM` | Optional account email via Resend API or SMTP                                  |
 | `EXPO_ACCESS_TOKEN`                                            | Mobile push when the Expo project enables enhanced push security               |
+| `WEB_PUSH_PRIVATE_KEY`                                         | Browser push notifications (with `WEB_PUSH_PUBLIC_KEY`)                        |
 | Messaging tokens (Slack, Telegram, …)                          | Only if you enable those surfaces                                              |
 
 Optional `APNS_VOIP_KEY_ID`, `APNS_VOIP_TEAM_ID`, and `APNS_VOIP_PRIVATE_KEY` enable

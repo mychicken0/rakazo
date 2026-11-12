@@ -41,6 +41,25 @@ EXPO_ACCESS_TOKEN=replace-with-your-expo-access-token
 Leave it unset when enhanced security is off. A missing or revoked token fails the push with an
 error that names `EXPO_ACCESS_TOKEN`; the token itself is never logged.
 
+### Browser push notifications
+
+The web app, including when installed as an app from the browser, can get reply notifications
+while it is closed. Generate a key pair once and set it for the API and worker:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+```env
+WEB_PUSH_PUBLIC_KEY=replace-with-the-public-key
+WEB_PUSH_PRIVATE_KEY=replace-with-the-private-key
+# Optional contact for the browsers' push services; defaults to WEB_URL.
+WEB_PUSH_SUBJECT=mailto:admin@example.com
+```
+
+A browser subscribes once notifications are allowed. Changing the keys makes every browser
+subscribe again the next time the app opens.
+
 ### Mobile incoming calls
 
 Incoming calls ring in the mobile app while it is open. Registered devices also receive an

@@ -33,6 +33,7 @@ import {
   createRunSandbox,
   createRunSecretWriter,
   createTicketChangeNotifier,
+  createWebPushSender,
   databaseCapacityBackoffMs,
   ExpoPushProvider,
   GraphileJobPublisher,
@@ -203,6 +204,7 @@ async function main() {
     jobs,
     accessToken: process.env.EXPO_ACCESS_TOKEN,
     voip: await createApnsVoipProvider(apnsVoipConfig(process.env)),
+    webPush: createWebPushSender(pushTokens),
   });
   const activityPush = await createApnsActivityProvider(apnsVoipConfig(process.env));
   if (activityPush) workActivities = new WorkActivities(prisma, env.encryptionKey, activityPush);

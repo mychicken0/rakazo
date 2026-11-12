@@ -8,6 +8,7 @@ import {
 } from "../../lib/browser-notifications";
 import { notificationIcon, prepareNotificationIcons } from "../../lib/notification-icon";
 import type { RpcClient } from "../../lib/rpc";
+import { showThroughServiceWorker, syncWebPush } from "../../lib/web-push";
 
 type PendingBrowserNotification = {
   event: Pick<ProductEvent, "id" | "type" | "threadId" | "botId" | "payload">;
@@ -111,8 +112,17 @@ export function useBrowserNotifications(
         openChatOnClick(notification, shown.current, () => openChatRef.current(alert));
       } catch {
         // Some browsers only allow notifications from a service worker.
+        const bot = botsRef.current.find((candidate) => candidate.id === alert.botId);
+        const icon = bot ? notificationIcon(bot) : undefined;
+        void showThroughServiceWorker(
+          alert.title,
+          { body: alert.body, tag: `${alert.threadId}:${alert.kind}`, ...(icon ? { icon } : {}) },
+          alert,
+        ).catch(() => undefined);
       }
     };
+    // Already allowed here: keep this browser subscribed for when the app is closed.
+    void syncWebPush(rpc);
     void (async () => {
       while (active) {
         controller = new AbortController();
@@ -179,10 +189,17 @@ export function useBrowserNotifications(
         notifiedEventIds: notifiedBrowserEvents.current,
         show: (title, body, tag) => {
           const icon = notificationIcon(currentBot);
-          const notification = new Notification(title, { body, tag, ...(icon ? { icon } : {}) });
-          openChatOnClick(notification, shown.current, () =>
-            openChatRef.current({ botId: pending.botId, groupId: pending.groupId }),
-          );
+          const chat = { botId: pending.botId, groupId: pending.groupId };
+          try {
+            const notification = new Notification(title, { body, tag, ...(icon ? { icon } : {}) });
+            openChatOnClick(notification, shown.current, () => openChatRef.current(chat));
+          } catch {
+            void showThroughServiceWorker(
+              title,
+              { body, tag, ...(icon ? { icon } : {}) },
+              chat,
+            ).catch(() => undefined);
+          }
         },
       },
     );
@@ -190,12 +207,14 @@ export function useBrowserNotifications(
   }, []);
   const flushPendingBrowserNotifications = useCallback(() => {
     if (!mounted.current) return;
+    // Permission was just answered: a yes also subscribes this browser to push.
+    void syncWebPush(rpc);
     for (const [threadId, pending] of pendingBrowserNotifications.current) {
       if (deliverBrowserNotification(pending)) {
         pendingBrowserNotifications.current.delete(threadId);
       }
     }
-  }, [deliverBrowserNotification]);
+  }, [deliverBrowserNotification, rpc]);
   const notifyBrowserForEvent = useCallback(
     (
       event: Pick<ProductEvent, "id" | "type" | "threadId" | "seq" | "botId" | "payload">,

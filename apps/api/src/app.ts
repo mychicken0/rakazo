@@ -44,6 +44,7 @@ import {
   createRunSecretWriter,
   createSecretStore,
   createTicketChangeNotifier,
+  createWebPushSender,
   EmailEmulator,
   ExpoPushProvider,
   GraphileJobPublisher,
@@ -467,6 +468,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
           sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
         }));
   const pushTokens = new PrismaPushTokenStore(prisma, env.encryptionKey);
+  const webPush = createWebPushSender(pushTokens);
   const notifications =
     notificationsOverride ??
     new ExpoPushProvider(pushTokens, {
@@ -474,6 +476,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       jobs,
       accessToken: env.expoAccessToken,
       voip: await createApnsVoipProvider(env.apnsVoip),
+      webPush,
     });
   const activityPush = await createApnsActivityProvider(env.apnsVoip);
   if (activityPush) workActivities = new WorkActivities(prisma, env.encryptionKey, activityPush);
@@ -727,6 +730,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     prisma,
     notifications,
     pushTokens,
+    webPush,
     workActivities,
     events,
     ticketChanges,

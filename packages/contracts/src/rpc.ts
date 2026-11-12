@@ -1512,6 +1512,19 @@ export const appContract = {
       )
       .output(z.object({ ok: z.literal(true) })),
     unregisterPush: oc.output(z.object({ ok: z.literal(true) })),
+    /** The key a browser subscribes to push with; null when this server sends no web push. */
+    webPushKey: oc.output(z.object({ publicKey: z.string().nullable() })),
+    /** This browser's push subscription, kept for the calling session. */
+    registerWebPush: oc
+      .input(
+        z.object({
+          deviceId: z.string().uuid(),
+          endpoint: z.string().url().max(2048).startsWith("https://"),
+          p256dh: z.string().regex(/^[A-Za-z0-9_-]{80,100}$/),
+          auth: z.string().regex(/^[A-Za-z0-9_-]{16,32}$/),
+        }),
+      )
+      .output(z.object({ ok: z.literal(true) })),
     /**
      * Keeps this phone's live status card of the user's bots at work up to date. `following` is
      * false when the server cannot update the card or no bot is at work, so the app ends it.

@@ -10,11 +10,15 @@ export interface PushRecord {
   presentation?: "android_sender";
 }
 
+/** A browser's push subscription: where to send, and the keys that encrypt for it. */
+export type WebPushSubscription = { endpoint: string; p256dh: string; auth: string };
+
 export type CallPushRegistration = {
   deviceId: string;
-  platform: "ios" | "android";
+  platform: "ios" | "android" | "web";
   expoToken?: string;
   voipToken?: string;
+  webPush?: WebPushSubscription;
 };
 export type CallPushDevice = CallPushRegistration & {
   userId: string;
@@ -30,7 +34,7 @@ export interface PushTokenStore {
     userId: string,
     deviceId: string,
     revision: string,
-    transport?: "voip" | "expo",
+    transport?: "voip" | "expo" | "web",
   ): Promise<void>;
   load(userId: string): Promise<PushRecord | undefined>;
   save(
@@ -142,7 +146,7 @@ export class PrismaPushTokenStore implements PushTokenStore {
     userId: string,
     deviceId: string,
     revision: string,
-    transport?: "voip" | "expo",
+    transport?: "voip" | "expo" | "web",
   ): Promise<void> {
     const id = credentialDigest(deviceId);
     const failed = JSON.parse(
@@ -162,11 +166,16 @@ export class PrismaPushTokenStore implements PushTokenStore {
                   await this.encryption.load(row.ciphertext, `call-push:${id}`),
                 ) as CallPushRegistration);
           // Only the token that actually failed goes; a newer one registered meanwhile stays.
-          if (transport !== "expo" && registration.voipToken === failed.voipToken)
-            delete registration.voipToken;
-          if (transport !== "voip" && registration.expoToken === failed.expoToken)
-            delete registration.expoToken;
-          if (!registration.voipToken && !registration.expoToken) {
+          if (transport === "web") {
+            if (registration.webPush?.endpoint === failed.webPush?.endpoint)
+              delete registration.webPush;
+          } else {
+            if (transport !== "expo" && registration.voipToken === failed.voipToken)
+              delete registration.voipToken;
+            if (transport !== "voip" && registration.expoToken === failed.expoToken)
+              delete registration.expoToken;
+          }
+          if (!registration.voipToken && !registration.expoToken && !registration.webPush) {
             await tx.callPushDevice.deleteMany({ where: { id, userId } });
             return;
           }

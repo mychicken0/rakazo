@@ -14,20 +14,55 @@ type FetchEvent = ExtendableEvent & {
   respondWith(response: Promise<Response>): void;
 };
 type MessageEvent = ExtendableEvent & { data: unknown };
+type PushEvent = ExtendableEvent & { data: { json(): unknown } | null };
+type NotificationClickEvent = ExtendableEvent & {
+  notification: { data: unknown; close(): void };
+};
+type WindowClient = {
+  url: string;
+  focused?: boolean;
+  visibilityState?: string;
+  focus?(): Promise<unknown>;
+  navigate?(url: string): Promise<unknown>;
+};
 
 export type ServiceWorkerScope = {
   location: { origin: string };
   caches: CacheStorage;
-  clients: { matchAll(options: { type: "window" }): Promise<readonly unknown[]> };
+  clients: {
+    matchAll(options: {
+      type: "window";
+      includeUncontrolled?: boolean;
+    }): Promise<readonly unknown[]>;
+    openWindow?(url: string): Promise<unknown>;
+  };
   registration: {
     waiting: Pick<ServiceWorker, "postMessage" | "addEventListener" | "removeEventListener"> | null;
+    showNotification?(title: string, options: NotificationOptions): Promise<void>;
   };
   skipWaiting(): Promise<void>;
   fetch(request: Request): Promise<Response>;
   addEventListener(type: "install" | "activate", listener: (event: ExtendableEvent) => void): void;
   addEventListener(type: "fetch", listener: (event: FetchEvent) => void): void;
   addEventListener(type: "message", listener: (event: MessageEvent) => void): void;
+  addEventListener(type: "push", listener: (event: PushEvent) => void): void;
+  addEventListener(
+    type: "notificationclick",
+    listener: (event: NotificationClickEvent) => void,
+  ): void;
 };
+
+type ChatPush = { title: string; body: string; tag: string; path: string };
+
+/** A server push for a chat, or nothing when it is not one; only in-app paths are opened. */
+export function chatPush(data: unknown): ChatPush | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const { title, body, tag, path } = data as Record<string, unknown>;
+  if (typeof title !== "string" || typeof body !== "string" || typeof tag !== "string")
+    return undefined;
+  if (typeof path !== "string" || !/^\/app(?:\/[A-Za-z0-9_-]+)*$/.test(path)) return undefined;
+  return { title, body, tag, path };
+}
 
 export function bypassesServiceWorker(pathname: string): boolean {
   return BYPASS_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -82,6 +117,60 @@ export function installServiceWorker(
 
   scope.addEventListener("message", (event) => {
     if (event.data === SKIP_WAITING) event.waitUntil(scope.skipWaiting());
+  });
+
+  scope.addEventListener("push", (event) => {
+    let push: ChatPush | undefined;
+    try {
+      push = chatPush(event.data?.json());
+    } catch {
+      return;
+    }
+    if (!push) return;
+    const { title, body, tag, path } = push;
+    event.waitUntil(
+      (async () => {
+        const windows = (await scope.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        })) as WindowClient[];
+        // Someone looking at the app sees its own alert; the push is for when it is closed.
+        if (windows.some((client) => client.focused && client.visibilityState === "visible"))
+          return;
+        await scope.registration.showNotification?.(title, {
+          body,
+          tag,
+          icon: "/icon-192.png",
+          data: { path },
+        });
+      })(),
+    );
+  });
+
+  scope.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const path = chatPush({
+      title: "",
+      body: "",
+      tag: "",
+      ...(event.notification.data as object),
+    })?.path;
+    const url = new URL(path ?? "/app", scope.location.origin).href;
+    event.waitUntil(
+      (async () => {
+        const windows = (await scope.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        })) as WindowClient[];
+        const open = windows.find((client) => client.url.startsWith(scope.location.origin));
+        if (open?.focus) {
+          await open.focus();
+          if (open.url !== url) await open.navigate?.(url).catch(() => undefined);
+          return;
+        }
+        await scope.clients.openWindow?.(url);
+      })(),
+    );
   });
 
   scope.addEventListener("fetch", (event) => {
