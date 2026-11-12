@@ -774,6 +774,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       phoneCallRingSeconds: env.phoneCallRingSeconds,
       ticketBoardEnabled,
       navLinks: env.navLinks,
+      largeFileUrl: env.largeFileUrl,
       adminEmails: env.adminEmails,
       maxUploadSizeBytes: env.maxUploadSizeBytes,
       maxAttachmentsPerMessage: env.maxAttachmentsPerMessage,

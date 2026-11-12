@@ -634,7 +634,7 @@ const ComposerBody = memo(function Composer({
         />
       ) : null}
       {attachmentNotice ? (
-        <div className="mb-3 rounded-[14px] border border-warning/40 bg-warning/10 px-4 py-2 text-body-sm text-warning">
+        <div className="mb-3 rounded-[14px] border border-warning/40 bg-background bg-linear-to-r from-warning/10 to-warning/10 px-4 py-2 text-body-sm text-warning">
           {attachmentNotice}
           {attachmentNoticeLink ? (
             <>
