@@ -16,6 +16,7 @@ import {
 import { Check, Copy, MessageSquareDot, MoreHorizontal, Reply, Smile } from "lucide-react";
 import { useState } from "react";
 import { MessageHoverMetadata } from "../../components/MessageHoverMetadata";
+import { formatFullTimestamp, formatTimestamp } from "../../lib/timestamp";
 
 export function MessageHoverActions({
   message,
@@ -44,6 +45,7 @@ export function MessageHoverActions({
   if (message.id.startsWith("progress:")) return null;
 
   const copied = copiedNow && copiedText === copyableMessageText(message);
+  const sentAt = formatTimestamp(message.createdAt);
 
   function copyMessage() {
     const text = copyableMessageText(message);
@@ -59,6 +61,16 @@ export function MessageHoverActions({
   return (
     <MessageHoverMetadata pinned={moreOpen || reactionsOpen || copied} side={side}>
       <div data-testid="message-hover-actions" className="flex items-center gap-0.5">
+        {sentAt ? (
+          <time
+            dateTime={message.createdAt}
+            title={formatFullTimestamp(message.createdAt)}
+            data-testid="message-time"
+            className="px-1.5 text-body-sm whitespace-nowrap text-muted-foreground tabular-nums"
+          >
+            {sentAt}
+          </time>
+        ) : null}
         {canReactToThreadMessage(message) ? (
           <Popover open={reactionsOpen} onOpenChange={setReactionsOpen}>
             <PopoverTrigger aria-label={t`React`} className={iconButtonClass}>

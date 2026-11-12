@@ -17,6 +17,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { cronLabels } from "../lib/cron";
+import { formatFullTimestamp, formatTimestamp } from "../lib/timestamp";
 
 export function routineTriggerSummary(
   routine: Routine,
@@ -122,6 +123,7 @@ function RoutineListRow({
   const { i18n } = useLingui();
   const scheduleLabels = cronLabels(i18n.locale);
   const TriggerIcon = routineTriggerIcon(routine);
+  const nextRun = routine.active && routine.nextRunAt ? formatTimestamp(routine.nextRunAt) : "";
   return (
     <div className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2.5 hover:bg-accent">
       <button
@@ -142,6 +144,16 @@ function RoutineListRow({
           </span>
           <span className="flex min-w-0 gap-2 text-body-sm text-muted-foreground/80">
             <span className="truncate">{routineTriggerSummary(routine, scheduleLabels)}</span>
+            {nextRun && routine.nextRunAt ? (
+              <time
+                dateTime={routine.nextRunAt}
+                title={formatFullTimestamp(routine.nextRunAt)}
+                data-testid="routine-next-run"
+                className="shrink-0 whitespace-nowrap"
+              >
+                <Trans>Next {nextRun}</Trans>
+              </time>
+            ) : null}
             {routine.modelProvider && routine.modelId ? (
               <span className="truncate">{routine.modelId}</span>
             ) : null}

@@ -275,6 +275,12 @@ const authored: ThreadMessage = {
   createdAt: new Date().toISOString(),
 };
 
+function sentAt(): string {
+  const time = container.querySelector('[data-testid="message-time"]')?.textContent;
+  if (!time) throw new Error("message time missing");
+  return time;
+}
+
 function renderAuthored(message: ThreadMessage, meId = "user-b") {
   renderView(message.role, message.blocks, { message, meId });
   const bubble = container.querySelector<HTMLElement>('[data-testid="message-user-bubble"]');
@@ -285,7 +291,8 @@ function renderAuthored(message: ThreadMessage, meId = "user-b") {
 it("names someone else's message and keeps it on the people side", () => {
   const { bubble, row } = renderAuthored(authored);
 
-  expect(container.textContent).toBe("AnaBook the table");
+  // The action row adds when it was sent.
+  expect(container.textContent).toBe(`AnaBook the table${sentAt()}`);
   expect(row.className).toContain("justify-end");
   expect(bubble.className).toContain("bg-muted");
   expect(bubble.className).not.toContain("bg-chat-user");
@@ -294,7 +301,7 @@ it("names someone else's message and keeps it on the people side", () => {
 it("keeps my own message unnamed on the right", () => {
   const { bubble, row } = renderAuthored(authored, ana.id);
 
-  expect(container.textContent).toBe("Book the table");
+  expect(container.textContent).toBe(`Book the table${sentAt()}`);
   expect(row.className).toContain("justify-end");
   expect(bubble.className).toContain("bg-chat-user");
 });
