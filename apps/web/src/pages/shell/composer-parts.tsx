@@ -39,6 +39,16 @@ export function PendingAttachmentChips({
           <span className="max-w-[180px] truncate" dir="auto">
             {attachment.file.name}
           </span>
+          {attachment.large ? (
+            <span
+              data-testid="large-upload-progress"
+              className={`tabular-nums ${attachment.large.failed ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {attachment.large.failed
+                ? t`Upload failed`
+                : `${Math.floor(attachment.large.progress * 100)}%`}
+            </span>
+          ) : null}
           <button
             type="button"
             aria-label={t`Remove ${attachment.file.name}`}

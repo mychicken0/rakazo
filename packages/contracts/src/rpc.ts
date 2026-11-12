@@ -1371,6 +1371,21 @@ export const appContract = {
       .input(z.object({ setting: SpaceSettingSchema, enabled: z.boolean() }))
       .output(z.array(SpaceSettingSchema)),
   },
+  /** Files over the chat upload limit, sent by the browser straight to shared storage. */
+  largeFiles: {
+    start: oc
+      .input(
+        z.object({
+          name: z.string().min(1).max(1000),
+          size: z.number().int().positive(),
+          mimeType: z.string().max(255).optional(),
+        }),
+      )
+      .output(z.object({ uploadUrl: z.string().url() })),
+    finish: oc
+      .input(z.object({ fileId: z.string().min(1).max(200) }))
+      .output(z.object({ name: z.string(), size: z.number(), link: z.string().url() })),
+  },
   artifacts: {
     list: oc.input(botId).output(z.array(ArtifactSchema)),
     listSpace: oc

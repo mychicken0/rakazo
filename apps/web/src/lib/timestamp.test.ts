@@ -6,20 +6,20 @@ const at = (...parts: [number, number, number, number, number]) => new Date(...p
 
 describe("formatTimestamp", () => {
   it("shows only the time today", () => {
-    expect(formatTimestamp(at(2026, 10, 12, 14, 36), now)).toBe("2:36 PM");
+    expect(formatTimestamp(at(2026, 10, 12, 14, 36), now, "en")).toBe("2:36 PM");
   });
 
   it("names yesterday and tomorrow", () => {
-    expect(formatTimestamp(at(2026, 10, 11, 9, 5), now)).toBe("Yesterday 9:05 AM");
-    expect(formatTimestamp(at(2026, 10, 13, 0, 0), now)).toBe("Tomorrow 12:00 AM");
+    expect(formatTimestamp(at(2026, 10, 11, 9, 5), now, "en")).toBe("Yesterday 9:05 AM");
+    expect(formatTimestamp(at(2026, 10, 13, 0, 0), now, "en")).toBe("Tomorrow 12:00 AM");
   });
 
   it("gives the date when older, and the year when it is another year", () => {
-    expect(formatTimestamp(at(2026, 10, 3, 8, 0), now)).toBe("Nov 3, 8:00 AM");
-    expect(formatTimestamp(at(2025, 11, 31, 23, 59), now)).toBe("Dec 31, 2025, 11:59 PM");
+    expect(formatTimestamp(at(2026, 10, 3, 8, 0), now, "en")).toBe("Nov 3, 8:00 AM");
+    expect(formatTimestamp(at(2025, 11, 31, 23, 59), now, "en")).toBe("Dec 31, 2025, 11:59 PM");
   });
 
   it("is empty for a bad date", () => {
-    expect(formatTimestamp("not a date", now)).toBe("");
+    expect(formatTimestamp("not a date", now, "en")).toBe("");
   });
 });

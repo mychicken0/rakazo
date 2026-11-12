@@ -14,7 +14,7 @@ import {
   updateComposerMentionBindings,
 } from "@rakazo/core";
 import { Button } from "@rakazo/ui-web";
-import { Box, Plus } from "lucide-react";
+import { Box, Plus, Upload } from "lucide-react";
 import type { ClipboardEvent, ComponentProps, RefObject } from "react";
 import {
   memo,
@@ -394,6 +394,13 @@ const ComposerBody = memo(function Composer({
     disabled,
     onDropFiles: pickAttachments,
   });
+  // While a file is dragged over the window, the whole chat column becomes the drop target.
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const [dropArea, setDropArea] = useState<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    const column = fieldsetRef.current?.closest("[data-chat-column]");
+    setDropArea(fileDragActive && !disabled && column ? column.getBoundingClientRect() : null);
+  }, [fileDragActive, disabled]);
   const canSend =
     draft.trim().length > 0 || selectedSkill !== null || pendingAttachments.length > 0;
 
@@ -594,13 +601,33 @@ const ComposerBody = memo(function Composer({
 
   return (
     <fieldset
+      ref={fieldsetRef}
       aria-label={t`Message composer`}
       data-dragging={draggingFiles ? "files" : undefined}
       {...dropHandlers}
       className={`relative z-30 m-0 min-w-0 border-0 ${docked ? "p-0" : "px-3 pb-4 pt-0 md:px-[max(1.5rem,calc((100%_-_60rem)/2))] md:pb-6"} [&>*]:pointer-events-auto ${fileDragActive ? "pointer-events-auto" : "pointer-events-none"} ${
-        draggingFiles ? "rounded-[14px] ring-2 ring-inset ring-ring" : ""
+        draggingFiles && !dropArea ? "rounded-[14px] ring-2 ring-inset ring-ring" : ""
       }`}
     >
+      {dropArea ? (
+        <div
+          data-testid="file-drop-area"
+          style={{
+            top: dropArea.top + 8,
+            left: dropArea.left + 8,
+            width: dropArea.width - 16,
+            height: dropArea.height - 16,
+          }}
+          className={`fixed z-40 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed text-heading3 backdrop-blur-[2px] transition-colors ${
+            draggingFiles
+              ? "border-primary bg-background/85 text-foreground"
+              : "border-border bg-background/70 text-muted-foreground"
+          }`}
+        >
+          <Upload size={32} strokeWidth={1.6} aria-hidden="true" />
+          <Trans>Drop files to attach</Trans>
+        </div>
+      ) : null}
       <div role="status" data-testid="composer-announcement" className="sr-only">
         {replyAnnouncement}
       </div>

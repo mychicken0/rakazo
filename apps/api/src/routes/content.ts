@@ -1,6 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import type { UsageOperationKind } from "@rakazo/adapter-kit";
-import { planLimitsReader, readMemberPlanLimits, resolveBotWorkspacePath } from "@rakazo/adapters";
+import {
+  LargeFileError,
+  planLimitsReader,
+  readMemberPlanLimits,
+  resolveBotWorkspacePath,
+} from "@rakazo/adapters";
 import type { ExportManifest } from "@rakazo/contracts";
 import { attachmentMaxBytes, resolveBotAvatarSet } from "@rakazo/contracts";
 import { AttachmentValidationError } from "@rakazo/core";
@@ -26,6 +31,28 @@ const EXPORT_MESSAGE_PAGE_SIZE = 500;
 export function contentRoutes(ctx: RouterContext) {
   const { deps, repos, favicons, groupRepos, authed, refreshExpiredCredential } = ctx;
   return {
+    largeFiles: {
+      start: authed.largeFiles.start.handler(async ({ input }) => {
+        if (!deps.largeFiles) throw new ORPCError("NOT_FOUND");
+        try {
+          return { uploadUrl: await deps.largeFiles.startUpload(input) };
+        } catch (error) {
+          if (error instanceof LargeFileError)
+            throw new ORPCError("BAD_REQUEST", { message: error.message });
+          throw error;
+        }
+      }),
+      finish: authed.largeFiles.finish.handler(async ({ input }) => {
+        if (!deps.largeFiles) throw new ORPCError("NOT_FOUND");
+        try {
+          const file = await deps.largeFiles.finished(input.fileId);
+          return { name: file.name, size: file.size, link: file.link };
+        } catch (error) {
+          if (error instanceof LargeFileError) throw new ORPCError("NOT_FOUND");
+          throw error;
+        }
+      }),
+    },
     artifacts: {
       list: authed.artifacts.list.handler(async ({ context, input }) => {
         await repos.getBot(context.actor, input.botId);

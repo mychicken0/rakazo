@@ -1486,6 +1486,8 @@ export const MeSchema = z.object({
   maxAttachmentsPerMessage: z.number().int().positive().optional(),
   /** Operator's shared folder for files over the upload limit (LARGE_FILE_URL). */
   largeFileUrl: z.string().url().optional(),
+  /** Files over the upload limit can be sent with largeFiles.start/finish. */
+  largeFileUploads: z.boolean().optional(),
   ticketBoardEnabled: z.boolean(),
   phoneCallsEnabled: z.boolean().default(false),
   /** Operator-configured menu links. Absent from older servers. */

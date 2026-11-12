@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { requestBrowserNotificationPermission } from "../../lib/browser-notifications";
 import { setComposerUnsavedWork } from "../../lib/composer-draft";
 import { scheduleFocusPrompt } from "../../lib/focus-prompt";
+import { formatFileSize, uploadLargeFile } from "../../lib/large-upload";
 import type { PageSession } from "../../lib/pages";
 import {
   readFileAsBase64,
@@ -276,6 +277,25 @@ export function useComposerActions({
     },
     [t],
   );
+  /** Starts a file over the chat limit uploading now, so it is ready (or nearly) by send. */
+  const startLargeUpload = useCallback(
+    (id: string, file: File): NonNullable<PendingAttachment["large"]> => {
+      const abort = new AbortController();
+      const patch = (change: Partial<NonNullable<PendingAttachment["large"]>>) =>
+        setPendingAttachments((current) =>
+          current.map((item) =>
+            item.id === id && item.large ? { ...item, large: { ...item.large, ...change } } : item,
+          ),
+        );
+      const upload = uploadLargeFile(rpc, file, (progress) => patch({ progress }), abort.signal);
+      // Send awaits it and reports a failure; this only marks the chip.
+      upload.catch(() => {
+        if (!abort.signal.aborted) patch({ failed: true });
+      });
+      return { upload, abort, progress: 0 };
+    },
+    [rpc],
+  );
   const onAttachmentPick = useCallback(
     (files: FileList | readonly File[] | null) => {
       const threadKey = activeGroupId.current ?? activeBotId.current;
@@ -290,8 +310,15 @@ export function useComposerActions({
           skipped.push(t`${file.name} (max ${ATTACHMENT_MAX_COUNT} attachments)`);
           continue;
         }
+        const overLimit = file.size > attachmentMaxBytes(bootstrapMe);
+        // Over the limit, the original goes to shared storage when the server offers it.
+        if (overLimit && bootstrapMe?.largeFileUploads) {
+          const id = newClientId();
+          next.push({ id, threadKey, file, large: startLargeUpload(id, file) });
+          continue;
+        }
         // Raster photos get a chance to shrink before server-side size validation.
-        if (file.size > attachmentMaxBytes(bootstrapMe) && !canPrepareImage(file)) {
+        if (overLimit && !canPrepareImage(file)) {
           oversized = true;
           skipped.push(
             t`${file.name} (over ${attachmentSizeLabel(attachmentMaxBytes(bootstrapMe))})`,
@@ -321,12 +348,13 @@ export function useComposerActions({
       if (fileInputRef.current) fileInputRef.current.value = "";
       return next.length > 0;
     },
-    [pendingAttachments, bootstrapMe, t],
+    [pendingAttachments, bootstrapMe, startLargeUpload, t],
   );
   useEffect(() => {
     if (!pendingAttachments.length) uploadedSendArtifacts.current.clear();
   }, [pendingAttachments]);
   const removeAttachment = useCallback((attachment: PendingAttachment) => {
+    attachment.large?.abort.abort();
     revokePendingAttachmentPreviews([attachment]);
     setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id));
   }, []);
@@ -335,6 +363,7 @@ export function useComposerActions({
     setPendingAttachments((current) => {
       const discarded = attachmentsForThread(current, threadKey);
       if (!discarded.length) return current;
+      for (const attachment of discarded) attachment.large?.abort.abort();
       revokePendingAttachmentPreviews(discarded);
       return current.filter((attachment) => !discarded.includes(attachment));
     });
@@ -427,7 +456,15 @@ export function useComposerActions({
         const uploaded =
           uploadedSendArtifacts.current.get(clientNonce) ?? new WeakMap<File, string>();
         uploadedSendArtifacts.current.set(clientNonce, uploaded);
+        const largeLinks: string[] = [];
         for (const pending of attachments) {
+          if (pending.large) {
+            const done = await pending.large.upload.catch(() => {
+              throw new Error(t`Upload failed: ${pending.file.name}`);
+            });
+            largeLinks.push(`📎 [${done.name}](${done.link}) · ${formatFileSize(done.size)}`);
+            continue;
+          }
           const existing = uploaded.get(pending.file);
           if (existing) {
             artifactIds.push(existing);
@@ -468,7 +505,7 @@ export function useComposerActions({
           ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
           clientNonce,
           imageHandling: imageHandling ?? "confirm",
-          text: trimmed || undefined,
+          text: [trimmed, ...largeLinks].filter(Boolean).join("\n\n") || undefined,
           mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
           artifactIds: artifactIds.length ? artifactIds : undefined,
           replyToMessageId: reroutedToGroup ? undefined : (replyToMessageId ?? replyAtSend?.id),

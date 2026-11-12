@@ -13,10 +13,13 @@ function sameDay(a: Date, b: Date): boolean {
  * When something happened or will happen, as short as stays clear: the time today, "Yesterday" or
  * "Tomorrow" with the time, otherwise the date (with the year when it is not this year).
  */
-export function formatTimestamp(iso: string, now = new Date()): string {
+export function formatTimestamp(
+  iso: string,
+  now = new Date(),
+  locale = i18n.locale || "en",
+): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const locale = i18n.locale || "en";
   const time = date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
   if (sameDay(date, now)) return time;
   const yesterday = new Date(now);

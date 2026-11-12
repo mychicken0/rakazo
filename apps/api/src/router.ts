@@ -17,6 +17,7 @@ import type {
   ConnectorRegistry,
   FaviconResolver,
   IntegrationProviderSettings,
+  LargeFileDrive,
   McpConnector,
   McpOAuthBroker,
   MemoryProviderResolver,
@@ -68,6 +69,8 @@ export { callMarkerClientNonce } from "./routes/threads.js";
 
 export interface RouterDeps {
   pushTokens: PushTokenStore;
+  /** Absent unless the deployment configured shared storage for files over the upload limit. */
+  largeFiles?: Pick<LargeFileDrive, "startUpload" | "finished">;
   /** Absent when the server has no web push keys. */
   webPush?: Pick<WebPushSender, "publicKey">;
   /** Absent when the deployment cannot update a phone's live status card. */
