@@ -1488,6 +1488,8 @@ export const MeSchema = z.object({
   largeFileUrl: z.string().url().optional(),
   /** Files over the upload limit can be sent with largeFiles.start/finish. */
   largeFileUploads: z.boolean().optional(),
+  /** Documents, sheets and slides can be previewed with artifacts.previewPdf. */
+  officePreviews: z.boolean().optional(),
   ticketBoardEnabled: z.boolean(),
   phoneCallsEnabled: z.boolean().default(false),
   /** Operator-configured menu links. Absent from older servers. */

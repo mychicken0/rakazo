@@ -8,6 +8,11 @@ import { rpc, selectedSpaceId } from "./rpc";
 
 let ticketBoardEnabled = false;
 let maxUploadSizeBytes = ATTACHMENT_MAX_BYTES;
+let officePreviews = false;
+/** Whether the server can render documents, sheets and slides as PDF for viewing. */
+export function getOfficePreviews() {
+  return officePreviews;
+}
 export function getMaxUploadSizeBytes() {
   return maxUploadSizeBytes;
 }
@@ -112,6 +117,7 @@ function requestBootstrap(botId?: string, spaceId?: string) {
 function applyCapabilities(bootstrap: AppBootstrap): AppBootstrap {
   ticketBoardEnabled = bootstrap.me.ticketBoardEnabled;
   maxUploadSizeBytes = attachmentMaxBytes(bootstrap.me);
+  officePreviews = bootstrap.me.officePreviews === true;
   for (const listener of capabilityListeners) listener();
   return bootstrap;
 }

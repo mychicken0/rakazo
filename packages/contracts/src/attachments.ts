@@ -87,7 +87,53 @@ export function isAttachmentImageMimeType(mimeType: string): boolean {
   return (ATTACHMENT_IMAGE_MIME_TYPES as readonly string[]).includes(mimeType);
 }
 
-export type ArtifactPreviewKind = "html" | "markdown" | "pdf" | "image" | "video" | "text" | "none";
+export type ArtifactPreviewKind =
+  | "html"
+  | "markdown"
+  | "pdf"
+  | "image"
+  | "video"
+  | "audio"
+  | "office"
+  | "text"
+  | "none";
+
+/** Images every browser draws, beyond the photo types chat shows inline. An SVG only ever loads
+ * as an image, where its scripts cannot run. */
+const PREVIEW_IMAGE_MIME_TYPES = new Set([
+  "image/svg+xml",
+  "image/avif",
+  "image/bmp",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+]);
+const PREVIEW_VIDEO_MIME_TYPES = new Set([
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-matroska",
+]);
+const PREVIEW_AUDIO_MIME_TYPES = new Set([
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/flac",
+  "audio/aac",
+]);
+/** Documents, sheets and slides, shown through a server-made PDF when the server can make one. */
+export const OFFICE_PREVIEW_MIME_TYPES: ReadonlySet<string> = new Set([
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+]);
 
 const TEXT_APPLICATION_MIME_TYPES = new Set([
   "application/json",
@@ -105,8 +151,10 @@ export function artifactPreviewKind(mimeType: string): ArtifactPreviewKind {
   if (type === "text/html") return "html";
   if (type === "text/markdown") return "markdown";
   if (type === "application/pdf") return "pdf";
-  if (isAttachmentImageMimeType(type)) return "image";
-  if (type === "video/mp4") return "video";
+  if (isAttachmentImageMimeType(type) || PREVIEW_IMAGE_MIME_TYPES.has(type)) return "image";
+  if (PREVIEW_VIDEO_MIME_TYPES.has(type)) return "video";
+  if (PREVIEW_AUDIO_MIME_TYPES.has(type)) return "audio";
+  if (OFFICE_PREVIEW_MIME_TYPES.has(type)) return "office";
   if (type.startsWith("text/") || TEXT_APPLICATION_MIME_TYPES.has(type)) return "text";
   return "none";
 }

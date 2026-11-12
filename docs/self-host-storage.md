@@ -226,6 +226,23 @@ this server or a proxy body limit, and the message carries its link. Add
 `https://www.googleapis.com` to `RAKAZO_CSP_CONNECT_SRC` so the page may reach the upload
 service. Share the folder with whoever should open the files.
 
+### Document, sheet and slide previews
+
+Chat shows images, SVG, GIF, video, audio, PDF and text files itself. Word, Excel,
+PowerPoint and OpenDocument files are shown as PDF when `OFFICE_PREVIEW_URL` points at a
+[Gotenberg](https://gotenberg.dev)-compatible document service. Run it next to the API on
+an internal network with no internet access, for example:
+
+```yaml
+  office-preview:
+    image: gotenberg/gotenberg:8.38.1-libreoffice
+    command: [gotenberg, --api-timeout=120s, --libreoffice-restart-after=10]
+    networks: [data]
+```
+
+and set `OFFICE_PREVIEW_URL=http://office-preview:3000`. Without it those files show as
+download cards.
+
 `MAX_ATTACHMENTS_PER_MESSAGE` sets the chat attachment count per message. It defaults
 to `4` and accepts integers from `1` to `100`. Set it in `.env` and restart the API.
 Web, desktop, and mobile use the advertised count; older clients and clients connected

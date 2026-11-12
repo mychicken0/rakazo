@@ -47,7 +47,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { VideoPreview } from "../components/ArtifactFileCard";
+import { ImageStage, OfficePdfPreview, VideoPreview } from "../components/ArtifactFileCard";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { IconTooltip } from "../components/IconTooltip";
 import { PdfViewer } from "../components/PdfViewer";
@@ -1027,9 +1027,26 @@ function ArtifactPreview({ artifact, bytes }: { artifact: Artifact; bytes: Uint8
     case "pdf":
       return <PdfViewer bytes={bytes} title={artifact.name} />;
     case "video":
-      return <VideoPreview bytes={bytes} name={artifact.name} />;
+      return <VideoPreview bytes={bytes} name={artifact.name} mimeType={artifact.mimeType} />;
+    case "audio":
+      return <AudioPreview bytes={bytes} mimeType={artifact.mimeType} name={artifact.name} />;
+    case "office":
+      return (
+        <OfficePdfPreview
+          target={artifact.botId ? { botId: artifact.botId } : { groupId: artifact.groupId! }}
+          artifactId={artifact.id}
+          name={artifact.name}
+        />
+      );
     case "image":
-      return <ImagePreview bytes={bytes} mimeType={artifact.mimeType} name={artifact.name} />;
+      return (
+        <ImageStage
+          bytes={bytes}
+          mimeType={artifact.mimeType}
+          name={artifact.name}
+          className="h-full p-4"
+        />
+      );
     case "none":
       return (
         <div className="grid h-full place-items-center px-6 text-center text-body text-muted-foreground/80">
@@ -1039,7 +1056,7 @@ function ArtifactPreview({ artifact, bytes }: { artifact: Artifact; bytes: Uint8
   }
 }
 
-function ImagePreview({
+function AudioPreview({
   bytes,
   mimeType,
   name,
@@ -1048,11 +1065,11 @@ function ImagePreview({
   mimeType: string;
   name: string;
 }) {
-  const url = useObjectUrl(bytes, mimeType);
-  if (!url) return null;
+  const url = useObjectUrl(bytes, mimeType) ?? undefined;
   return (
-    <div className="grid h-full place-items-center overflow-auto bg-muted/40 p-4">
-      <img src={url} alt={name} className="max-h-full max-w-full rounded-lg shadow-sm" />
+    <div className="grid h-full place-items-center bg-muted p-6">
+      {/* biome-ignore lint/a11y/useMediaCaption: Attachment playback has no caption track supplied by the author. */}
+      <audio src={url} controls preload="metadata" aria-label={name} className="w-full max-w-md" />
     </div>
   );
 }

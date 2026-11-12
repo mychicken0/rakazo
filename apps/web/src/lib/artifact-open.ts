@@ -19,6 +19,15 @@ export async function fetchArtifactBytes(
   return decodeArtifactBase64(artifact.contentBase64);
 }
 
+/** A document, sheet or slide deck rendered as PDF; rejects when the server cannot convert. */
+export async function fetchArtifactPreviewPdf(
+  target: ArtifactTarget,
+  artifactId: string,
+): Promise<Uint8Array> {
+  const { contentBase64 } = await rpc.artifacts.previewPdf({ ...target, artifactId });
+  return decodeArtifactBase64(contentBase64);
+}
+
 export function downloadArtifactBytes(name: string, mimeType: string, bytes: Uint8Array): void {
   const blob = new Blob([new Uint8Array(bytes)], { type: mimeType });
   const url = URL.createObjectURL(blob);

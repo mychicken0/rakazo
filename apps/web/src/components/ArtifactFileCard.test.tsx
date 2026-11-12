@@ -9,12 +9,16 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   create: vi.fn(),
   revoke: vi.fn(),
+  pdf: vi.fn(),
+  office: vi.fn(),
 }));
 vi.mock("../lib/artifact-open", () => ({
   fetchArtifactBytes: mocks.fetch,
   downloadArtifact: mocks.download,
   downloadArtifactBytes: vi.fn(),
+  fetchArtifactPreviewPdf: mocks.pdf,
 }));
+vi.mock("../lib/bootstrap", () => ({ getOfficePreviews: mocks.office }));
 vi.mock("@lingui/react/macro", () => {
   const t = (strings: TemplateStringsArray, ...values: unknown[]) =>
     strings.reduce((text, part, index) => text + part + (values[index] ?? ""), "");
@@ -24,7 +28,7 @@ vi.mock("@lingui/core/macro", () => ({
   t: (strings: TemplateStringsArray, ...values: unknown[]) =>
     `«${strings.reduce((text, part, index) => text + part + (values[index] ?? ""), "")}»`,
 }));
-vi.mock("./PdfViewer", () => ({ PdfViewer: () => null }));
+vi.mock("./PdfViewer", () => ({ PdfViewer: () => <div data-testid="pdf-viewer" /> }));
 vi.mock("@rakazo/chat-ui/web", () => ({ ChatMarkdown: () => null }));
 
 import { ArtifactFileCard } from "./ArtifactFileCard";
@@ -42,6 +46,8 @@ beforeEach(() => {
   );
   mocks.create.mockReset().mockReturnValue("blob:audio-preview");
   mocks.revoke.mockReset();
+  mocks.pdf.mockReset().mockResolvedValue(new Uint8Array([37, 80]));
+  mocks.office.mockReset().mockReturnValue(true);
   mocks.fetch.mockReset().mockResolvedValue(new Uint8Array([1, 2, 3]));
   mocks.download.mockReset().mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
@@ -216,7 +222,7 @@ it("translates every size unit and rolls up instead of 1,024.0 KB or 1,536.0 MB"
       </>,
     ),
   );
-  const sizes = [...container.querySelectorAll("button span:last-child")].map(
+  const sizes = [...container.querySelectorAll('[data-slot="file-size"]')].map(
     (el) => el.textContent,
   );
   expect(sizes).toEqual(["«512 B»", "«1 KB»", "«1 MB»", "«1.5 GB»", "«1.5 TB»"]);
@@ -243,4 +249,111 @@ it("previews plain text in the app instead of only offering a download", async (
       "1. Confirm the pricing page copy.",
     ),
   );
+});
+
+function renderCard(name: string, mimeType: string, artifactId = "file-1") {
+  return act(async () =>
+    root?.render(
+      <ArtifactFileCard
+        target={{ botId: "bot-1" }}
+        artifactId={artifactId}
+        name={name}
+        mimeType={mimeType}
+        size={2048}
+      />,
+    ),
+  );
+}
+
+it.each([
+  ["logo.svg", "image/svg+xml"],
+  ["anim.gif", "image/gif"],
+])("shows %s as an image from an object URL, never inline markup", async (name, mimeType) => {
+  mocks.create.mockReturnValue("blob:image");
+  await renderCard(name, mimeType);
+  const img = container.querySelector("img");
+  expect(img?.getAttribute("src")).toBe("blob:image");
+  expect(container.querySelector("iframe, object, embed")).toBeNull();
+  expect(mocks.create.mock.calls[0]?.[0].type).toBe(mimeType);
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>(`button[aria-label="View ${name}"]`)?.click(),
+  );
+  expect(document.body.querySelectorAll("img").length).toBe(2);
+  await act(async () => root?.unmount());
+  root = undefined;
+  expect(mocks.revoke).toHaveBeenCalledWith("blob:image");
+});
+
+it("falls back to the file card when an image cannot be loaded", async () => {
+  mocks.fetch.mockRejectedValueOnce(new Error("gone"));
+  await renderCard("pic.png", "image/png");
+  expect(container.querySelector("img")).toBeNull();
+  expect(container.querySelector('button[aria-label="Download pic.png"]')).not.toBeNull();
+});
+
+it("loads video bytes only after play", async () => {
+  mocks.create.mockReturnValue("blob:video");
+  await renderCard("clip.mov", "video/quicktime");
+  expect(mocks.fetch).not.toHaveBeenCalled();
+  expect(container.querySelector("video")).toBeNull();
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Play clip.mov"]')?.click(),
+  );
+  const video = container.querySelector("video");
+  expect(video?.getAttribute("src")).toBe("blob:video");
+  expect(video?.hasAttribute("controls")).toBe(true);
+  expect(mocks.create.mock.calls[0]?.[0].type).toBe("video/quicktime");
+  await act(async () => {
+    video?.dispatchEvent(new Event("error"));
+  });
+  expect(container.querySelector("video")).toBeNull();
+  expect(container.querySelector('[role="alert"]')).not.toBeNull();
+  expect(container.querySelector('button[aria-label="Download clip.mov"]')).not.toBeNull();
+});
+
+it("plays flac as audio", async () => {
+  await renderCard("song.flac", "audio/flac");
+  expect(container.querySelector('button[aria-label="Play song.flac"]')).not.toBeNull();
+});
+
+const PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+it("renders an office file through its PDF preview", async () => {
+  await renderCard("deck.pptx", PPTX);
+  expect(container.textContent).toContain("PPTX");
+  expect(mocks.pdf).not.toHaveBeenCalled();
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Preview deck.pptx"]')?.click(),
+  );
+  expect(mocks.pdf).toHaveBeenCalledWith({ botId: "bot-1" }, "file-1");
+  expect(mocks.fetch).not.toHaveBeenCalled();
+  await vi.waitFor(() =>
+    expect(document.body.querySelector('[data-testid="pdf-viewer"]')).not.toBeNull(),
+  );
+});
+
+it("says so when an office file cannot be previewed and keeps download", async () => {
+  mocks.pdf.mockRejectedValueOnce(new Error("NOT_FOUND"));
+  await renderCard("deck.pptx", PPTX);
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Preview deck.pptx"]')?.click(),
+  );
+  await vi.waitFor(() => expect(document.body.querySelector('[role="alert"]')).not.toBeNull());
+  expect(document.body.querySelector('button[aria-label="Download deck.pptx"]')).not.toBeNull();
+});
+
+it("offers office files as plain cards when the server cannot convert", async () => {
+  mocks.office.mockReturnValue(false);
+  await renderCard("deck.pptx", PPTX);
+  expect(container.querySelector('button[aria-label="Preview deck.pptx"]')).toBeNull();
+  expect(container.querySelector('button[aria-label="Download deck.pptx"]')).not.toBeNull();
+});
+
+it("shows a short type label instead of the mime type on a generic file", async () => {
+  await renderCard("model.psd", "image/vnd.adobe.photoshop");
+  expect(container.textContent).toContain("PSD");
+  expect(container.textContent).not.toContain("image/vnd");
+  await renderCard("bundle.zip", "application/zip");
+  expect(container.textContent).toContain("ZIP");
+  expect(container.textContent).not.toContain("application/zip");
 });

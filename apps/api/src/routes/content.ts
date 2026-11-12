@@ -2,12 +2,13 @@ import { ORPCError } from "@orpc/server";
 import type { UsageOperationKind } from "@rakazo/adapter-kit";
 import {
   LargeFileError,
+  OfficePreviewError,
   planLimitsReader,
   readMemberPlanLimits,
   resolveBotWorkspacePath,
 } from "@rakazo/adapters";
 import type { ExportManifest } from "@rakazo/contracts";
-import { attachmentMaxBytes, resolveBotAvatarSet } from "@rakazo/contracts";
+import { artifactPreviewKind, attachmentMaxBytes, resolveBotAvatarSet } from "@rakazo/contracts";
 import { AttachmentValidationError } from "@rakazo/core";
 import { IsolationError, LISTED_ARTIFACT, parseComputerMode } from "@rakazo/db";
 import {
@@ -128,6 +129,41 @@ export function contentRoutes(ctx: RouterContext) {
           });
         } catch (error) {
           if (error instanceof IsolationError) throw error;
+          throw error;
+        }
+      }),
+      previewPdf: authed.artifacts.previewPdf.handler(async ({ context, input }) => {
+        const converter = deps.officePreview;
+        if (!converter) throw new ORPCError("NOT_FOUND");
+        // The same lookup as artifacts.get, so a preview is visible exactly where the file is.
+        let artifact: Awaited<ReturnType<typeof getOwnedArtifact>>;
+        if (input.groupId) {
+          const group = await groupRepos.getGroupTarget(context.actor, input.groupId);
+          const contextBotId = group.members[0]?.bot.id;
+          if (!contextBotId) throw new IsolationError();
+          artifact = await getSpaceArtifact(deps, context.actor, {
+            artifactId: input.artifactId,
+            groupId: input.groupId,
+            contextBotId,
+          });
+        } else {
+          await repos.getBot(context.actor, input.botId!);
+          artifact = await getOwnedArtifact(deps, context.actor, {
+            botId: input.botId!,
+            artifactId: input.artifactId,
+          });
+        }
+        if (artifactPreviewKind(artifact.mimeType) !== "office") throw new ORPCError("NOT_FOUND");
+        try {
+          const pdf = await converter.toPdf(
+            `${artifact.id}:${artifact.version}`,
+            artifact.name,
+            Buffer.from(artifact.contentBase64, "base64"),
+          );
+          return { contentBase64: Buffer.from(pdf).toString("base64") };
+        } catch (error) {
+          if (error instanceof OfficePreviewError)
+            throw new ORPCError("UNPROCESSABLE_CONTENT", { message: error.message });
           throw error;
         }
       }),

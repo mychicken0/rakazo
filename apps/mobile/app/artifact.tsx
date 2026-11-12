@@ -74,6 +74,9 @@ async function computePreview(mimeType: string, file: File): Promise<PreviewCont
       return { kind: "image", uri: file.uri };
     case "video":
       return { kind: "video", uri: file.uri };
+    // Audio plays from the message; office files open in another app from the share sheet.
+    case "audio":
+    case "office":
     case "none":
       return { kind: "unsupported" };
   }

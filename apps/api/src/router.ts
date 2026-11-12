@@ -22,6 +22,7 @@ import type {
   McpOAuthBroker,
   MemoryProviderResolver,
   MessagingInstallations,
+  OfficePreviewConverter,
   PiOAuthLogins,
   PlanLimitsReader,
   PluginRepoFetcher,
@@ -71,6 +72,8 @@ export interface RouterDeps {
   pushTokens: PushTokenStore;
   /** Absent unless the deployment configured shared storage for files over the upload limit. */
   largeFiles?: Pick<LargeFileDrive, "startUpload" | "finished">;
+  /** Absent unless a document service can render office files as PDF. */
+  officePreview?: Pick<OfficePreviewConverter, "toPdf">;
   /** Absent when the server has no web push keys. */
   webPush?: Pick<WebPushSender, "publicKey">;
   /** Absent when the deployment cannot update a phone's live status card. */

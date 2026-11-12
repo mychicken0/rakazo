@@ -1422,6 +1422,10 @@ export const appContract = {
     get: oc.input(threadTarget.and(z.object({ artifactId: Id }))).output(ArtifactWithContentSchema),
     getById: oc.input(z.object({ artifactId: Id })).output(ArtifactWithContentSchema),
     remove: oc.input(z.object({ artifactId: Id })).output(z.object({ ok: z.literal(true) })),
+    /** A document, sheet or slide deck rendered as PDF for viewing; NOT_FOUND when unsupported. */
+    previewPdf: oc
+      .input(threadTarget.and(z.object({ artifactId: Id })))
+      .output(z.object({ contentBase64: z.string() })),
   },
   /** Pages bots built for the caller in this Space. */
   pages: {

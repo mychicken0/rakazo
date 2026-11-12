@@ -54,6 +54,7 @@ export async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
     maxAttachmentsPerMessage: attachmentMaxCount(deps.env),
     ...(deps.env.largeFileUrl ? { largeFileUrl: deps.env.largeFileUrl } : {}),
     ...(deps.largeFiles ? { largeFileUploads: true } : {}),
+    ...(deps.officePreview ? { officePreviews: true } : {}),
     userId: actor.userId,
     email: user.email,
     name: user.name,
