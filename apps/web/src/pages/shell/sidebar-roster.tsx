@@ -165,7 +165,7 @@ export function SidebarRoster({
                       render={
                         group.emptySpaceId ? <button type="button" /> : <CollapsibleTrigger />
                       }
-                      className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-label font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${hasSpaceActions ? "col-start-1 row-start-1 w-full" : "flex-1"}`}
+                      className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 [@media(pointer:coarse)]:py-3 text-label font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${hasSpaceActions ? "col-start-1 row-start-1 w-full" : "flex-1"}`}
                       onClick={() => {
                         if (group.emptySpaceId) {
                           openSpaceChat(group.emptySpaceId, "/onboarding");
@@ -194,7 +194,7 @@ export function SidebarRoster({
                       }
                     >
                       <span
-                        className={`flex min-w-0 items-center gap-1.5 truncate ${hasSpaceActions ? "pe-7" : ""}`}
+                        className={`flex min-w-0 items-center gap-1.5 truncate ${hasSpaceActions ? "pe-7 [@media(pointer:coarse)]:pe-14" : ""}`}
                       >
                         {group.showLock ? (
                           group.shared ? (
@@ -214,9 +214,7 @@ export function SidebarRoster({
                         <ChevronDown
                           size={14}
                           strokeWidth={1.8}
-                          className={
-                            collapsed ? "-rotate-90 transition-transform" : "transition-transform"
-                          }
+                          className={`${collapsed ? "-rotate-90 " : ""}transition-transform [@media(pointer:coarse)]:size-5`}
                           aria-hidden="true"
                         />
                       )}
@@ -253,7 +251,7 @@ export function SidebarRoster({
                     size="icon-sm"
                     className={
                       group.title
-                        ? `col-start-1 row-start-1 justify-self-end self-center ${group.emptySpaceId ? "" : "me-6"}`
+                        ? `col-start-1 row-start-1 justify-self-end self-center [@media(pointer:coarse)]:size-10 [@media(pointer:coarse)]:[&_svg]:size-5 ${group.emptySpaceId ? "" : "me-6 [@media(pointer:coarse)]:me-8"}`
                         : undefined
                     }
                     aria-label={t`Actions for ${group.spaceName}`}
