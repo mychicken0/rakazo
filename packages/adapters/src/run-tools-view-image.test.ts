@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 import { MODEL_CANNOT_SEE_MESSAGE } from "./model-vision.js";
-import { fileTools } from "./run-tools-files.js";
+import { attachedImagePreview, fileTools } from "./run-tools-files.js";
 
 async function png(width: number, height: number) {
   return new Uint8Array(
@@ -64,5 +64,26 @@ describe("read_file on an image", () => {
   it("reports a file that is not really an image", async () => {
     const result = await fileTools.read_file!(ctx(new TextEncoder().encode("nope")), call("a.png"));
     expect(result).toEqual({ error: "this file could not be read as an image", path: "a.png" });
+  });
+});
+
+describe("attachedImagePreview", () => {
+  it("draws an SVG the way a browser shows it", async () => {
+    const svg = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
+    );
+    const preview = await attachedImagePreview("logo.svg", svg);
+    const meta = await sharp(preview!).metadata();
+    expect(meta.format).toBe("png");
+    expect(meta.width).toBeGreaterThanOrEqual(200);
+  });
+
+  it("shrinks a large picture and ignores files that are not pictures", async () => {
+    const preview = await attachedImagePreview("big.png", await png(3000, 1500));
+    expect((await sharp(preview!).metadata()).width).toBe(1024);
+    expect(await attachedImagePreview("notes.txt", new TextEncoder().encode("hi"))).toBeUndefined();
+    expect(
+      await attachedImagePreview("broken.png", new TextEncoder().encode("nope")),
+    ).toBeUndefined();
   });
 });

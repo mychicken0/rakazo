@@ -187,12 +187,53 @@ export const fileTools: ToolHandlers = {
           .notify(run.threadId, committed.eventSeq, committed.firstResponseRunId)
           .catch((error) => getLogger().error("thread message realtime notification", error));
       await recordComputerAction(ctx, call, "attach_file", filePath);
-      return call.finish({ ok: true, artifactId: saved.artifactId, path: filePath });
+      const finished = await call.finish({
+        ok: true,
+        artifactId: saved.artifactId,
+        path: filePath,
+      });
+      // A bot that can see gets the picture it just sent, so a broken render or a bad trace is
+      // caught before it tells the user the work looks right.
+      const preview = ctx.computer.acceptsImages
+        ? await attachedImagePreview(filePath, read.bytes)
+        : undefined;
+      if (!preview) return finished;
+      return {
+        kind: "agent_tool_result",
+        content: [
+          {
+            type: "text",
+            text: `${JSON.stringify(finished)}\nThis is what the user now sees. Check it before calling the work done; if it is wrong, fix it and attach again under the same name.`,
+          },
+          { type: "image", data: preview.toString("base64"), mimeType: "image/png" },
+        ],
+        details: finished,
+      };
     } catch (error) {
       return fail(error instanceof Error ? error.message : "could not attach file");
     }
   },
 };
+
+/** A small PNG of an attached image or SVG for the model, or undefined for anything else. */
+export async function attachedImagePreview(
+  filePath: string,
+  bytes: Uint8Array,
+): Promise<Buffer | undefined> {
+  const type = inferAttachmentMimeType(filePath);
+  if (!isAttachmentImageMimeType(type) && type !== "image/svg+xml") return undefined;
+  try {
+    const { default: sharp } = await import("sharp");
+    // An SVG is drawn by librsvg, as browsers would show it; transparency sits on white.
+    return await sharp(bytes, { limitInputPixels: 268_402_689, density: 144 })
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "white" })
+      .png()
+      .toBuffer();
+  } catch {
+    return undefined;
+  }
+}
 
 /** The largest image read from a workspace; bigger photos are not something to look at whole. */
 const MAX_VIEW_IMAGE_BYTES = 40 * 1024 * 1024;
