@@ -26,15 +26,26 @@ const responseSchema = z.object({
     .object({
       input_tokens: z.number().int().nonnegative().optional(),
       output_tokens: z.number().int().nonnegative().optional(),
+      // Google's decisions API names its counts differently.
+      total_input_tokens: z.number().int().nonnegative().optional(),
+      total_output_tokens: z.number().int().nonnegative().optional(),
       cost: z.number().nonnegative().optional(),
     })
     .optional(),
 });
 
-/** Two implementations of the same decision protocol; endpoint and auth never come from model output. */
+export type DecisionProtocolProvider = "openrouter" | "typesafe" | "google";
+
+const DECISION_URLS: Record<DecisionProtocolProvider, string> = {
+  openrouter: "https://openrouter.ai/api/alpha/decisions",
+  typesafe: "https://api.typesafe.ai/v1/systemone",
+  google: "https://generativelanguage.googleapis.com/v1beta/decisions",
+};
+
+/** Implementations of the same decision protocol; endpoint and auth never come from model output. */
 export class HttpDecisionProvider implements DecisionProvider {
   constructor(
-    private readonly provider: "openrouter" | "typesafe",
+    private readonly provider: DecisionProtocolProvider,
     private readonly options: DecisionProviderOptions,
   ) {
     if (!options.apiKey.trim()) throw new DecisionProviderError("authentication");
@@ -42,7 +53,17 @@ export class HttpDecisionProvider implements DecisionProvider {
 
   async decide(request: DecisionRequest, context: AdapterContext): Promise<DecisionResult> {
     context.signal.throwIfAborted();
-    const body = JSON.stringify(request);
+    // Google takes the state as `input`: plain text, or the state serialized as JSON.
+    const body = JSON.stringify(
+      this.provider === "google"
+        ? {
+            model: request.model,
+            input:
+              typeof request.state === "string" ? request.state : JSON.stringify(request.state),
+            questions: request.questions,
+          }
+        : request,
+    );
     const callId = randomUUID();
     const pricing = decisionModel(this.provider, request.model);
     // Byte count plus a generous protocol allowance bounds tokenizer expansion.
@@ -69,22 +90,19 @@ export class HttpDecisionProvider implements DecisionProvider {
     let sent = false;
     try {
       sent = true;
-      const response = await (this.options.fetch ?? fetch)(
-        this.provider === "openrouter"
-          ? "https://openrouter.ai/api/alpha/decisions"
-          : "https://api.typesafe.ai/v1/systemone",
-        {
-          method: "POST",
-          redirect: "error",
-          signal: context.signal,
-          headers: {
-            Authorization: `Bearer ${this.options.apiKey}`,
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body,
+      const response = await (this.options.fetch ?? fetch)(DECISION_URLS[this.provider], {
+        method: "POST",
+        redirect: "error",
+        signal: context.signal,
+        headers: {
+          ...(this.provider === "google"
+            ? { "x-goog-api-key": this.options.apiKey }
+            : { Authorization: `Bearer ${this.options.apiKey}` }),
+          Accept: "application/json",
+          "Content-Type": "application/json",
         },
-      ).catch((error: unknown) => {
+        body,
+      }).catch((error: unknown) => {
         // A connection failure the caller did not cause never reached the provider.
         if (!context.signal.aborted) sent = false;
         throw error;
@@ -111,8 +129,8 @@ export class HttpDecisionProvider implements DecisionProvider {
       if (parsed.id && reservation)
         await this.options.callObserver?.onRequestId?.(reservation, parsed.id);
       usage = {
-        inputTokens: parsed.usage?.input_tokens ?? null,
-        outputTokens: parsed.usage?.output_tokens ?? null,
+        inputTokens: parsed.usage?.input_tokens ?? parsed.usage?.total_input_tokens ?? null,
+        outputTokens: parsed.usage?.output_tokens ?? parsed.usage?.total_output_tokens ?? null,
         costUsd: parsed.usage?.cost ?? null,
         costSource: parsed.usage?.cost === undefined ? null : "provider-reported",
         pricingSnapshot,

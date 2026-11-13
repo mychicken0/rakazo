@@ -29,12 +29,41 @@ export function applyPiModelCompatibility(models: MutableModels): MutableModels 
     );
     models.setProvider({ ...compatible, getModels: () => systemModels });
   }
+  for (const extra of NEWER_MODELS) {
+    const provider = models.getProvider?.(extra.provider);
+    const original = provider?.getModels() ?? [];
+    const base = original.find((model) => model.id === extra.from);
+    if (!provider || !base || original.some((model) => model.id === extra.model.id)) continue;
+    const added = [...original, { ...base, ...extra.model } as Model<Api>];
+    models.setProvider({ ...provider, getModels: () => added });
+  }
   const getModel = models.getModel.bind(models);
   models.getModel = (provider, id) => getModel(canonicalPiProviderId(provider), id);
   const getProvider = models.getProvider?.bind(models);
   if (getProvider) models.getProvider = (provider) => getProvider(canonicalPiProviderId(provider));
   return models;
 }
+
+/**
+ * Models a provider already serves that the bundled registry does not list yet, each copied from
+ * a sibling with the same protocol and limits. Skipped once the registry lists the id itself.
+ */
+const NEWER_MODELS: ReadonlyArray<{
+  provider: string;
+  from: string;
+  model: Partial<Model<Api>> & { id: string; name: string };
+}> = [
+  {
+    provider: "google",
+    from: "gemini-4-argon",
+    model: {
+      id: "gemini-4-hydrogen",
+      name: "Gemini 4 Hydrogen",
+      maxTokens: 65_536,
+      cost: { input: 1.5, output: 7.5, cacheRead: 0.075, cacheWrite: 0 },
+    },
+  },
+];
 
 const DEVELOPER_ROLE_PROVIDERS = new Set(["openai", "azure", "openrouter"]);
 

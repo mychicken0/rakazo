@@ -206,3 +206,35 @@ describe("decision provider failures", () => {
     },
   );
 });
+
+describe("google decisions", () => {
+  it("sends the state as input with the Google key header and reads Google's usage counts", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          answers: { decision: { type: "choice", choice: "ask", confidence: 0.99 } },
+          usage: { total_input_tokens: 162, total_output_tokens: 0 },
+        }),
+      ),
+    );
+    const onUsage = vi.fn();
+    const result = await new HttpDecisionProvider("google", {
+      apiKey: "fake-key",
+      fetch: fetchMock,
+      onUsage,
+    }).decide({ ...request, model: "gemini-decision-1" }, context);
+    expect(result.answers.decision).toEqual({ type: "choice", choice: "ask", confidence: 0.99 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/decisions");
+    expect(init?.headers).toMatchObject({ "x-goog-api-key": "fake-key" });
+    expect(init?.headers).not.toHaveProperty("Authorization");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      model: "gemini-decision-1",
+      input: JSON.stringify(request.state),
+      questions: request.questions,
+    });
+    expect(onUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "google", inputTokens: 162, outputTokens: 0 }),
+    );
+  });
+});

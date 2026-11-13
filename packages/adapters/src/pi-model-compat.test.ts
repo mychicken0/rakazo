@@ -49,3 +49,22 @@ describe("provider compatibility boundaries", () => {
     expect(applyPiModelCompatibility(original).getProvider("openai")).toBe(openai);
   });
 });
+
+it("lists Gemini 4 Hydrogen on the Google connection, built like its Argon sibling", () => {
+  const models = applyPiModelCompatibility(builtinModels());
+  const hydrogen = models.getModel("google", "gemini-4-hydrogen");
+  const argon = models.getModel("google", "gemini-4-argon");
+  expect(hydrogen).toMatchObject({
+    name: "Gemini 4 Hydrogen",
+    api: argon?.api,
+    baseUrl: argon?.baseUrl,
+    input: ["text", "image"],
+    maxTokens: 65_536,
+  });
+  expect(
+    models
+      .getProvider?.("google")
+      ?.getModels()
+      .filter((m) => m.id === "gemini-4-hydrogen"),
+  ).toHaveLength(1);
+});

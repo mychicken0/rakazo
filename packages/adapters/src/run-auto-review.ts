@@ -69,9 +69,10 @@ export async function autoReviewCheckerProvider(
       operationId: `auto-review:${runId}`,
       operationKind: "setup",
     });
-  return decisionModel(checker.provider, checker.model)
+  const decision = decisionModel(checker.provider, checker.model);
+  return decision
     ? new DecisionAutoReviewProvider({
-        provider: new HttpDecisionProvider("openrouter", {
+        provider: new HttpDecisionProvider(decision.provider, {
           apiKey: judgeKey.apiKey ?? "",
           callObserver: judgeKey.callObserver,
           onUsage,
