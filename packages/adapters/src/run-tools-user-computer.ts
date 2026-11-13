@@ -45,7 +45,9 @@ const USER_COMPUTER_UNAVAILABLE =
 
 /**
  * Whose own computer this run may reach: the person whose message started it, when they own the
- * bot. Routines, webhooks, channels, other bots and other people's messages reach no one's.
+ * bot, or the owner's own scheduled routine, whose instructions they wrote themselves. Routines
+ * that carry outside content (watched pages), webhooks, channels, other bots and other people's
+ * messages reach no one's.
  */
 export function userComputerOwner(input: {
   trigger: string;
@@ -53,10 +55,18 @@ export function userComputerOwner(input: {
   messagingChannelRun: boolean;
   runUserId: string;
   botUserId: string;
+  /** For a routine run: who wrote the routine, and whether it brings in outside content. */
+  routine?: { userId: string; watched: boolean } | null;
 }): string | undefined {
+  if (input.messagingChannelRun || input.runUserId !== input.botUserId) return undefined;
+  if (input.trigger === "routine") {
+    const routine = input.routine;
+    return routine && !routine.watched && routine.userId === input.runUserId
+      ? input.runUserId
+      : undefined;
+  }
   if (input.trigger !== "user" && input.trigger !== "follow_up") return undefined;
-  if (input.sourceRole !== "user" || input.messagingChannelRun) return undefined;
-  return input.runUserId === input.botUserId ? input.runUserId : undefined;
+  return input.sourceRole === "user" ? input.runUserId : undefined;
 }
 
 /**

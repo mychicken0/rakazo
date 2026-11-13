@@ -115,6 +115,24 @@ describe("userComputerOwner", () => {
     expect(userComputerOwner({ ...own, trigger: "follow_up" })).toBe("user-1");
   });
 
+  it("is the bot owner for their own scheduled routine", () => {
+    const routine = { userId: "user-1", watched: false };
+    expect(userComputerOwner({ ...own, trigger: "routine", sourceRole: undefined, routine })).toBe(
+      "user-1",
+    );
+  });
+
+  it.each([
+    { routine: null },
+    { routine: { userId: "user-1", watched: true } },
+    { routine: { userId: "user-2", watched: false } },
+    { routine: { userId: "user-1", watched: false }, runUserId: "user-2" },
+  ])("is nobody for a routine run with %o", (change) => {
+    expect(
+      userComputerOwner({ ...own, trigger: "routine", sourceRole: undefined, ...change }),
+    ).toBeUndefined();
+  });
+
   it.each([
     { trigger: "routine" },
     { trigger: "webhook" },

@@ -1241,12 +1241,22 @@ export function createRunExecutor(executorDeps: ExecutorDeps) {
           run.trigger !== "bot_message" &&
           !thread.groupId &&
           !nonOwnerChatRun;
+        const ownRoutine =
+          run.trigger === "routine" && run.routineId
+            ? await deps.prisma.routine
+                .findUnique({ where: { id: run.routineId }, select: { userId: true, watch: true } })
+                .then((routine) =>
+                  routine ? { userId: routine.userId, watched: routine.watch != null } : null,
+                )
+                .catch(() => null)
+            : null;
         const userComputerOwnerId = userComputerOwner({
           trigger: run.trigger,
           sourceRole: sourceMessage?.role,
           messagingChannelRun: nonOwnerChatRun,
           runUserId: run.userId,
           botUserId: bot.userId,
+          routine: ownRoutine,
         });
         let userComputer: UserComputerState;
         let userComputerShell = false;
