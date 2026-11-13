@@ -601,6 +601,12 @@ export function modelsRoutes(ctx: RouterContext) {
           throw new ORPCError("NOT_FOUND", { message: "Connection not found" });
         return { ok: true as const };
       }),
+      refreshCatalog: authed.models.refreshCatalog.handler(async ({ input }) => {
+        (deps.providerCatalog ?? providerCatalogCache).invalidate(
+          canonicalPiProviderId(input.provider),
+        );
+        return { ok: true as const };
+      }),
       setShownModels: authed.models.setShownModels.handler(async ({ context, input }) => {
         const updated = await deps.prisma.userModelCredential.updateMany({
           where: { id: input.credentialId, userId: context.actor.userId },

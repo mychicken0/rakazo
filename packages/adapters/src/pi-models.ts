@@ -223,6 +223,8 @@ export async function probeCatalogProviderModels(
   fetchImpl?: typeof fetch,
   signal?: AbortSignal,
 ): Promise<string[]> {
+  const native = NATIVE_MODEL_LISTS[canonicalPiProviderId(input.provider)];
+  if (native) return listNativeProviderModels(native, input.apiKey, fetchImpl, signal);
   const baseUrl = catalogProviderProbeBaseUrl(input.provider);
   if (!baseUrl) throw new Error("This provider cannot be tested without saving.");
   await verifyCatalogProviderApiKey(input, fetchImpl, signal);
@@ -230,6 +232,87 @@ export async function probeCatalogProviderModels(
     allowPublic: true,
     catalogProbe: true,
   });
+}
+
+/**
+ * Providers whose own API lists the account's models, for those without an OpenAI-style
+ * GET {base}/models. Live ids only add models; they never hide bundled ones.
+ */
+const NATIVE_MODEL_LISTS: Readonly<Record<string, "anthropic" | "google">> = {
+  anthropic: "anthropic",
+  google: "google",
+};
+const NATIVE_LIST_MAX_IDS = 2_000;
+const NATIVE_LIST_MAX_PAGES = 5;
+
+/** Whether the provider's API can list the models an API key can use. */
+export function catalogProviderListsModels(provider: string): boolean {
+  return (
+    Boolean(NATIVE_MODEL_LISTS[canonicalPiProviderId(provider)]) ||
+    Boolean(catalogProviderProbeBaseUrl(provider))
+  );
+}
+
+async function listNativeProviderModels(
+  kind: "anthropic" | "google",
+  rawKey: string,
+  fetchImpl: typeof fetch = globalThis.fetch,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const apiKey = rawKey.trim();
+  assertHeaderSafeApiKey(apiKey);
+  const ids: string[] = [];
+  let pageToken = "";
+  for (let page = 0; page < NATIVE_LIST_MAX_PAGES; page++) {
+    const url =
+      kind === "anthropic"
+        ? "https://api.anthropic.com/v1/models?limit=1000"
+        : `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        headers:
+          kind === "anthropic"
+            ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+            : { "x-goog-api-key": apiKey },
+        redirect: "error",
+        signal: AbortSignal.any([
+          AbortSignal.timeout(MODEL_CONNECT_TIMEOUT_MS),
+          ...(signal ? [signal] : []),
+        ]),
+      });
+    } catch {
+      // Transport errors may contain the request's credential. Never forward them.
+      throw new Error("Could not list this provider's models.");
+    }
+    if (response.status === 401 || response.status === 403) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new Error(MODEL_KEY_REJECTED_ERROR);
+    }
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new Error("Could not list this provider's models.");
+    }
+    const body = (await response.json().catch(() => ({}))) as {
+      data?: Array<{ id?: unknown }>;
+      models?: Array<{ name?: unknown; supportedGenerationMethods?: unknown }>;
+      nextPageToken?: unknown;
+    };
+    if (kind === "anthropic") {
+      for (const model of body.data ?? []) if (typeof model.id === "string") ids.push(model.id);
+      break;
+    }
+    for (const model of body.models ?? []) {
+      const methods = Array.isArray(model.supportedGenerationMethods)
+        ? model.supportedGenerationMethods
+        : [];
+      if (typeof model.name === "string" && methods.includes("generateContent"))
+        ids.push(model.name.replace(/^models\//, ""));
+    }
+    pageToken = typeof body.nextPageToken === "string" ? body.nextPageToken : "";
+    if (!pageToken) break;
+  }
+  return [...new Set(ids)].slice(0, NATIVE_LIST_MAX_IDS);
 }
 
 /** Wire protocols whose registry base URL also serves GET {base}/models. */

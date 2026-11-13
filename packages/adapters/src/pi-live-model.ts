@@ -30,6 +30,13 @@ export function withLiveImageInput(
   return { ...model, input };
 }
 
+const OPENAI_STYLE_APIS = new Set([
+  "openai-completions",
+  "openai-responses",
+  "openai-codex-responses",
+]);
+const NATIVE_APIS = new Set(["anthropic-messages", "google-generative-ai"]);
+
 /** A deterministic fallback shared by listing and execution; never changes provider or host. */
 export function liveModelSibling(
   models: Models,
@@ -37,13 +44,12 @@ export function liveModelSibling(
   id: string,
 ): Model<Api> | undefined {
   if (!isChatModelId(id)) return undefined;
-  const siblings =
-    models
-      .getProvider?.(provider)
-      ?.getModels()
-      .filter((model) =>
-        ["openai-completions", "openai-responses", "openai-codex-responses"].includes(model.api),
-      ) ?? [];
+  const all = models.getProvider?.(provider)?.getModels() ?? [];
+  const openAiStyle = all.filter((model) => OPENAI_STYLE_APIS.has(model.api));
+  // A provider's own protocol (Anthropic Messages, Gemini) serves only its own families, so a
+  // live id runs there only as a newer member of a family the registry already knows.
+  const native = openAiStyle.length === 0;
+  const siblings = native ? all.filter((model) => NATIVE_APIS.has(model.api)) : openAiStyle;
   const urls = new Set(siblings.map((model) => model.baseUrl));
   if (urls.size !== 1 || siblings.length === 0) return undefined;
   const url = new URL(siblings[0]!.baseUrl);
@@ -55,9 +61,12 @@ export function liveModelSibling(
     return n;
   };
   const sibling = [...siblings].sort((a, b) => prefixLength(b.id) - prefixLength(a.id))[0]!;
-  // Only a date/alias variant proves the same family and its capabilities.
-  const family = (value: string) => value.replace(/-(?:\d{4}-\d{2}-\d{2}|\d{4,8}|latest)$/, "");
+  // A date/alias variant, or a newer version number of the same name (claude-fable-5-2 next to
+  // claude-fable-5-1), proves the same family and its capabilities.
+  const family = (value: string) =>
+    value.replace(/-(?:\d{4}-\d{2}-\d{2}|\d{4,8}|latest)$/, "").replace(/(?:[-.]\d+)+$/, "");
   const sameFamily = family(id) === family(sibling.id);
+  if (native && !sameFamily) return undefined;
   return {
     ...sibling,
     id,

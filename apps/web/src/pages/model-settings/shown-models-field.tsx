@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@rakazo/ui-web";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSpaceRpc } from "../../lib/space-rpc";
 import { useListSearch } from "../../lib/use-list-search";
@@ -51,6 +51,16 @@ export function ShownModelsField({
   // "Hide all" starts an empty pick; nothing is saved until the first model is checked.
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  // Asks the provider for its current models now, so a just-released one appears.
+  const refreshModels = () => {
+    setRefreshing(true);
+    setError(null);
+    rpc.models
+      .refreshCatalog({ provider: credential.provider })
+      .then(onSaved, (err: unknown) => setError(errorText(err, t`Could not refresh models`)))
+      .finally(() => setRefreshing(false));
+  };
   const { query, setQuery, showSearch, visible } = useListSearch(models, {
     text: modelCatalogSearchText,
   });
@@ -87,9 +97,24 @@ export function ShownModelsField({
 
   return (
     <div className="mb-6">
-      <span className="block text-body text-muted-foreground">
-        <Trans>Models</Trans>
-      </span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="block text-body text-muted-foreground">
+          <Trans>Models</Trans>
+        </span>
+        <button
+          type="button"
+          aria-label={t`Refresh models`}
+          title={t`Refresh models`}
+          disabled={refreshing}
+          onClick={refreshModels}
+          className="rounded-md p-1 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
+        >
+          <RefreshCw
+            aria-hidden
+            className={`size-4 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`}
+          />
+        </button>
+      </div>
       <Popover
         open={open}
         onOpenChange={(next) => {

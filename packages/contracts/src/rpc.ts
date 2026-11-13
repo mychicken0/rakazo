@@ -584,6 +584,10 @@ export const appContract = {
     rename: oc
       .input(z.object({ credentialId: Id, label: ModelConnectionLabelSchema }))
       .output(z.object({ ok: z.literal(true) })),
+    /** Reads the provider's model list again instead of waiting for the cached one to expire. */
+    refreshCatalog: oc
+      .input(z.object({ provider: z.string().trim().min(1).max(200) }))
+      .output(z.object({ ok: z.literal(true) })),
     /** Which of the connection's models the pickers list; empty lists all. Display only. */
     setShownModels: oc
       .input(

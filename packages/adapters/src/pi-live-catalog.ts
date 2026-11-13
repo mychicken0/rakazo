@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { SecretStore } from "@rakazo/adapter-kit";
 import { canonicalPiProviderId } from "@rakazo/contracts";
@@ -10,7 +11,7 @@ import { isChatModelId, liveModelSibling } from "./pi-live-model.js";
 import type { PiCatalogEntry } from "./pi-models.js";
 import {
   catalogModelLabel,
-  catalogProviderProbeBaseUrl,
+  catalogProviderListsModels,
   isRecommendedCatalogModel,
   listPiCatalog,
   probeCatalogProviderModels,
@@ -74,7 +75,9 @@ export function liveCatalogEntry(provider: string, id: string): PiCatalogEntry |
     label: catalogModelLabel(id),
     live: true,
     reasoning: model.reasoning,
-    thinkingLevels: ["off"],
+    thinkingLevels: model.reasoning
+      ? (getSupportedThinkingLevels(model) as PiCatalogEntry["thinkingLevels"])
+      : ["off"],
     images: model.input.includes("image"),
   };
 }
@@ -103,7 +106,7 @@ export function applyProviderLiveCatalog(
   };
   const additions: PiCatalogEntry[] = [];
   for (const provider of new Set(base.map((entry) => entry.provider))) {
-    if (!catalogProviderProbeBaseUrl(provider)) continue;
+    if (!catalogProviderListsModels(provider)) continue;
     const ids = new Set([
       ...(live.get(auth.secretIdByProvider?.[provider] ?? "") ?? []),
       ...Object.values(auth.secretIdByModel?.[provider] ?? {}).flatMap(
@@ -177,7 +180,7 @@ export class ProviderCatalogCache {
     this.cache.invalidate(`${provider}:`);
   }
   read(credential: ProviderCatalogCredential, waitMs?: number): Promise<string[] | undefined> {
-    if (!this.enabled || !catalogProviderProbeBaseUrl(credential.provider))
+    if (!this.enabled || !catalogProviderListsModels(credential.provider))
       return Promise.resolve(undefined);
     return this.cache.read(
       `${credential.provider}:${credential.secretId}:${credential.version}`,
@@ -205,13 +208,13 @@ export async function providerLiveCatalogsForSpace(
   if (!cache.enabled) return new Map();
   const slots = new Map<string, string>();
   for (const provider of Object.keys(auth.byProvider)) {
-    if (auth.byProvider[provider] === "api_key" && catalogProviderProbeBaseUrl(provider)) {
+    if (auth.byProvider[provider] === "api_key" && catalogProviderListsModels(provider)) {
       const id = auth.secretIdByProvider?.[provider];
       if (id) slots.set(id, provider);
     }
   }
   for (const [provider, models] of Object.entries(auth.byModel)) {
-    if (!catalogProviderProbeBaseUrl(provider)) continue;
+    if (!catalogProviderListsModels(provider)) continue;
     for (const [model, kind] of Object.entries(models ?? {})) {
       const id = auth.secretIdByModel?.[provider]?.[model];
       if (kind === "api_key" && id) slots.set(id, provider);
@@ -288,7 +291,7 @@ export async function providerLiveListsModel(
   provider = canonicalPiProviderId(provider);
   if (
     !cache.enabled ||
-    !catalogProviderProbeBaseUrl(provider) ||
+    !catalogProviderListsModels(provider) ||
     !liveCatalogEntry(provider, modelId)
   )
     return false;
