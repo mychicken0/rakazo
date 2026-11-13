@@ -14,6 +14,7 @@ import {
   hiddenCatalogModel,
   kickModelCredentialRefresh,
   listAvailablePiCatalog,
+  liveDecisionModels,
   McpOAuthBroker,
   modelCredentialAuthKindsForSpace,
   offeredCatalog,
@@ -256,7 +257,12 @@ export function createRouterContext(deps: RouterDeps) {
   };
   const modelRoleCatalog = async (actor: Actor, role: ModelRole): Promise<ModelCatalogEntry[]> => {
     const catalog = await chatCatalog(actor);
-    const decisions = role === "approval" ? decisionModelCatalog() : [];
+    const decisions =
+      role === "approval"
+        ? decisionModelCatalog(
+            await liveDecisionModels({ prisma: deps.prisma, secrets: deps.secrets }, actor.userId),
+          )
+        : [];
     const managedProviders = new Set(
       catalog.filter((entry) => "managed" in entry && entry.managed).map((entry) => entry.provider),
     );

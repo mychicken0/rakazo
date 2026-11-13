@@ -1,7 +1,18 @@
 import type { AdapterContext, DecisionRequest } from "@rakazo/adapter-kit";
 import { describe, expect, it, vi } from "vitest";
 import { estimateTextTokens } from "./context-selection.js";
+import { rememberDecisionModels } from "./decision-models.js";
 import { HttpDecisionProvider } from "./http-decisions.js";
+
+rememberDecisionModels([
+  {
+    provider: "openrouter",
+    providerName: "OpenRouter",
+    id: "typesafe/jev-1.14",
+    label: "Jev 1.14",
+    inputUsdPerMillion: 0.042,
+  },
+]);
 
 const context: AdapterContext = {
   operationId: "review",

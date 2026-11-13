@@ -7,6 +7,20 @@ import { describe, expect, it, vi } from "vitest";
 import type { RouterDeps } from "./router.js";
 import { createRouter } from "./router.js";
 
+// Decision models are read live from the providers; tests use a fixed list instead.
+vi.mock("@rakazo/adapters", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@rakazo/adapters")>()),
+  liveDecisionModels: vi.fn(async () => [
+    {
+      provider: "openrouter",
+      providerName: "OpenRouter",
+      id: "typesafe/jev-1.14",
+      label: "Jev 1.14",
+      inputUsdPerMillion: 0.042,
+    },
+  ]),
+}));
+
 const owner: Actor = {
   userId: "user-one",
   spaceId: "space-one",

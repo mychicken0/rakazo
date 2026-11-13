@@ -4,7 +4,7 @@ import type { AutoReviewChecker } from "./auto-review.js";
 import { autoReviewTimeoutMs, resolveAutoReviewProviderKind } from "./auto-review.js";
 import { createAutoReviewProvider } from "./auto-review-factory.js";
 import { DecisionAutoReviewProvider } from "./decision-auto-review.js";
-import { decisionModel } from "./decision-models.js";
+import { decisionModel, liveDecisionModels } from "./decision-models.js";
 import type { ExecutorDeps } from "./executor-deps.js";
 import { HttpDecisionProvider } from "./http-decisions.js";
 import { findConnectedModelCredential, hasHostedModelCredits } from "./model-selection.js";
@@ -69,7 +69,11 @@ export async function autoReviewCheckerProvider(
       operationId: `auto-review:${runId}`,
       operationKind: "setup",
     });
-  const decision = decisionModel(checker.provider, checker.model);
+  const decision =
+    decisionModel(checker.provider, checker.model) ??
+    (await liveDecisionModels({ prisma: deps.prisma, secrets: deps.secretStore }, userId)).find(
+      (model) => model.provider === checker.provider && model.id === checker.model,
+    );
   return decision
     ? new DecisionAutoReviewProvider({
         provider: new HttpDecisionProvider(decision.provider, {

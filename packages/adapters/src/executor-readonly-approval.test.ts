@@ -31,6 +31,18 @@ import type { TurnCheckpoint } from "./turn-checkpoint.js";
 import { serializeTurnCheckpoint } from "./turn-checkpoint.js";
 import type { UserDeviceGateway } from "./user-device-protocol.js";
 
+vi.mock("./decision-models.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./decision-models.js")>()),
+  liveDecisionModels: vi.fn(async () => [
+    {
+      provider: "openrouter",
+      providerName: "OpenRouter",
+      id: "typesafe/jev-1.14",
+      label: "Jev 1.14",
+      inputUsdPerMillion: 0.042,
+    },
+  ]),
+}));
 vi.mock("./computer-lifecycle.js", async (importOriginal) => ({
   ...(await importOriginal<typeof ComputerLifecycleModule>()),
   acquireComputerExecutionLease: async () => null,

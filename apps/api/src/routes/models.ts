@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { isTransientModelError, SecretStoreUnavailableError } from "@rakazo/adapter-kit";
 import {
   compatibleEndpointPreset,
+  invalidateDecisionModels,
   listPiCatalog,
   ModelSignInError,
   modelCredentialDto,
@@ -605,6 +606,7 @@ export function modelsRoutes(ctx: RouterContext) {
         (deps.providerCatalog ?? providerCatalogCache).invalidate(
           canonicalPiProviderId(input.provider),
         );
+        invalidateDecisionModels(canonicalPiProviderId(input.provider));
         return { ok: true as const };
       }),
       setShownModels: authed.models.setShownModels.handler(async ({ context, input }) => {

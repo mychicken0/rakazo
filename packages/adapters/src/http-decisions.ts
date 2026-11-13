@@ -65,7 +65,7 @@ export class HttpDecisionProvider implements DecisionProvider {
         : request,
     );
     const callId = randomUUID();
-    const pricing = decisionModel(this.provider, request.model);
+    const price = decisionModel(this.provider, request.model)?.inputUsdPerMillion;
     // Byte count plus a generous protocol allowance bounds tokenizer expansion.
     const inputTokensEstimate = Buffer.byteLength(body, "utf8") + 4096;
     const reservation = await this.options.callObserver?.beforeCall({
@@ -76,12 +76,10 @@ export class HttpDecisionProvider implements DecisionProvider {
       operationKind: "setup",
       inputTokensEstimate,
       maxOutputTokens: 0,
-      maxCostUsd: pricing
-        ? (inputTokensEstimate * pricing.inputUsdPerMillion) / 1_000_000
-        : undefined,
+      maxCostUsd: price !== undefined ? (inputTokensEstimate * price) / 1_000_000 : undefined,
     });
     let usage: AgentUsage | null = null;
-    const pricingSnapshot = pricing ? { input: pricing.inputUsdPerMillion } : null;
+    const pricingSnapshot = price !== undefined ? { input: price } : null;
     // Deliberately low, for a sent request whose usage never arrives.
     const countedTokens = {
       inputTokens: lowTextTokens(body),
