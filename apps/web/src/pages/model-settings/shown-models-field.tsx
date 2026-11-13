@@ -48,6 +48,8 @@ export function ShownModelsField({
   const [shown, setShown] = useState<string[]>(saved ?? []);
   useEffect(() => setShown(saved ?? []), [saved]);
   const [open, setOpen] = useState(false);
+  // "Hide all" starts an empty pick; nothing is saved until the first model is checked.
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { query, setQuery, showSearch, visible } = useListSearch(models, {
     text: modelCatalogSearchText,
@@ -55,7 +57,7 @@ export function ShownModelsField({
   if (models.length < 2) return null;
 
   const all = shown.length === 0;
-  const checked = (id: string) => all || shown.includes(id);
+  const checked = (id: string) => !picking && (all || shown.includes(id));
   const save = (next: string[]) => {
     const before = shown;
     setShown(next);
@@ -68,6 +70,10 @@ export function ShownModelsField({
       });
   };
   const toggle = (id: string) => {
+    if (picking) {
+      setPicking(false);
+      return save([id]);
+    }
     const current = all ? models.map((entry) => entry.id) : shown;
     if (!checked(id)) return save([...current, id]);
     // The last model stays: an empty list would show every model again.
@@ -88,6 +94,7 @@ export function ShownModelsField({
         open={open}
         onOpenChange={(next) => {
           setQuery("");
+          setPicking(false);
           setOpen(next);
         }}
       >
@@ -122,12 +129,24 @@ export function ShownModelsField({
               <CommandEmpty>
                 <Trans>No matching models</Trans>
               </CommandEmpty>
-              {all || query.trim() ? null : (
+              {query.trim() ? null : (
                 <>
                   <CommandGroup>
-                    <CommandItem value="show-all" onSelect={() => save([])}>
-                      <Trans>Show all</Trans>
-                    </CommandItem>
+                    {all && !picking ? (
+                      <CommandItem value="hide-all" onSelect={() => setPicking(true)}>
+                        <Trans>Hide all</Trans>
+                      </CommandItem>
+                    ) : (
+                      <CommandItem
+                        value="show-all"
+                        onSelect={() => {
+                          setPicking(false);
+                          if (!all) save([]);
+                        }}
+                      >
+                        <Trans>Show all</Trans>
+                      </CommandItem>
+                    )}
                   </CommandGroup>
                   <CommandSeparator />
                 </>
