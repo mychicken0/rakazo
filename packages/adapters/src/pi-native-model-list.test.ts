@@ -79,3 +79,8 @@ describe("live models on a provider's own protocol", () => {
     expect(liveModelSibling(models, "google", "imagined-model")).toBeUndefined();
   });
 });
+
+it("names a newer family version after its sibling", () => {
+  const models = applyPiModelCompatibility(builtinModels());
+  expect(liveModelSibling(models, "anthropic", "claude-fable-5-2")?.name).toBe("Claude Fable 5.2");
+});

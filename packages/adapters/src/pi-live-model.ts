@@ -30,6 +30,19 @@ export function withLiveImageInput(
   return { ...model, input };
 }
 
+/** "Claude Fable 5.1" for claude-fable-5-1 names claude-fable-5-2 "Claude Fable 5.2". */
+function familyName(sibling: Model<Api>, id: string): string {
+  const version = (value: string) =>
+    value
+      .match(/(?:[-.]\d+)+$/)?.[0]
+      .slice(1)
+      .replace(/-/g, ".");
+  const from = version(sibling.id);
+  const to = version(id);
+  if (!from || !to || !sibling.name.includes(from)) return id;
+  return sibling.name.replace(from, to);
+}
+
 const OPENAI_STYLE_APIS = new Set([
   "openai-completions",
   "openai-responses",
@@ -70,7 +83,7 @@ export function liveModelSibling(
   return {
     ...sibling,
     id,
-    name: id,
+    name: sameFamily ? familyName(sibling, id) : id,
     reasoning: sameFamily && sibling.reasoning,
     input: sameFamily ? [...sibling.input] : ["text"],
     // An unrelated sibling's window says nothing about this model's.

@@ -72,7 +72,7 @@ export function liveCatalogEntry(provider: string, id: string): PiCatalogEntry |
     ...entry,
     id,
     recommended: isRecommendedCatalogModel(provider, id),
-    label: catalogModelLabel(id),
+    label: catalogModelLabel(id, model.name),
     live: true,
     reasoning: model.reasoning,
     thinkingLevels: model.reasoning
