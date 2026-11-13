@@ -33,6 +33,8 @@ KNOWN_LAUNCH = frozenset(
 # Focus-or-launch wraps KNOWN_LAUNCH launchers: rakazo-focus-or-launch <launcher> [uri].
 FOCUS_OR_LAUNCH = "rakazo-focus-or-launch"
 CONTROL_TIMEOUT_SEC = 10
+UI_ELEMENTS_READER = "/usr/local/lib/rakazo-ui-elements.py"
+UI_ELEMENTS_TIMEOUT_SEC = 4
 LAUNCH_SPAWN_POLL_SEC = 0.2
 # A live browser opens a URL in this process, then exits. rakazo-browser caps the
 # profile scan at 0.4s and that forward at 1.6s. This poll outlasts both, plus a
@@ -355,6 +357,26 @@ def capture(display):
     }
 
 
+def read_ui_elements(display):
+    """Controls of the desktop apps as observation fields; empty on any failure."""
+    try:
+        result = subprocess.run(
+            ["python3", "-I", UI_ELEMENTS_READER],
+            env=child_env(display),
+            capture_output=True,
+            text=True,
+            timeout=UI_ELEMENTS_TIMEOUT_SEC,
+        )
+        data = json.loads(result.stdout)
+        elements = [item for item in data.get("elements", []) if isinstance(item, str)]
+    except Exception:
+        return {}
+    return {
+        **({"elements": elements} if elements else {}),
+        **({"elementsTruncated": True} if elements and data.get("truncated") is True else {}),
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
         pass
@@ -388,6 +410,8 @@ class Handler(BaseHTTPRequestHandler):
                 response = {"completed": len(body.get("steps", []))}
                 if body.get("observe", True):
                     response["observation"] = capture(display)
+                    if body.get("elements") is True:
+                        response["observation"].update(read_ui_elements(display))
             encoded = json.dumps(response, separators=(",", ":")).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

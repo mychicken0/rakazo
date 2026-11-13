@@ -149,6 +149,22 @@ describe("computer tool bridge", () => {
     ]);
   });
 
+  it("lists UI elements as text and keeps them out of details", () => {
+    const observation = computerObservation(Uint8Array.from([1, 2, 3]), {
+      mimeType: "image/png",
+      width: 1280,
+      height: 800,
+      elements: ['window "Editor"', '[button] "Save" (10,20)'],
+      elementsTruncated: true,
+    });
+    const result = observationToolResult(observation);
+    expect(result.content[1]).toEqual({
+      type: "text",
+      text: 'UI elements (x,y = center):\nwindow "Editor"\n[button] "Save" (10,20)\n…more elements not shown',
+    });
+    expect(JSON.stringify(result.details)).not.toContain("Save");
+  });
+
   it("does not resend an unchanged screenshot", () => {
     const observation = computerObservation(Uint8Array.from([1, 2, 3]), {
       mimeType: "image/png",

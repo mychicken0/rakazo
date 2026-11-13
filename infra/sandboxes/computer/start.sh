@@ -62,6 +62,12 @@ if command -v dbus-launch >/dev/null 2>&1; then
     > /tmp/rakazo/dbus-session
 fi
 
+# The accessibility bus lets the computer tools list on-screen controls with exact
+# coordinates (ui_elements.py). GTK3 apps join it through the installed atk bridge.
+if [ -x /usr/libexec/at-spi-bus-launcher ]; then
+  /usr/libexec/at-spi-bus-launcher --launch-immediately >/tmp/rakazo/atspi.log 2>&1 &
+fi
+
 # Chromium's file chooser talks to xdg-desktop-portal over the session bus.
 # Without a running portal backend, the select-file dialog opens but the
 # chosen file never reaches the page — uploads silently do nothing. The

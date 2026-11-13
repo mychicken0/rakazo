@@ -213,7 +213,11 @@ export interface SandboxProvider {
     lease: ControlLeaseRef,
     context: AdapterContext,
   ): Promise<void>;
-  observe(computer: ComputerRef, context: AdapterContext): Promise<ComputerObservation>;
+  observe(
+    computer: ComputerRef,
+    context: AdapterContext,
+    options?: { elements?: boolean },
+  ): Promise<ComputerObservation>;
   act(
     computer: ComputerRef,
     request: ComputerActionRequest,

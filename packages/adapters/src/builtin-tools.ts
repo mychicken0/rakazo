@@ -278,13 +278,13 @@ export const builtinAgentTools: ConnectorTool[] = [
   {
     name: "computer_observe",
     description:
-      "Capture the current screen of this bot's computer. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop.",
-    inputSchema: { type: "object", properties: {} },
+      "Capture the current screen of this bot's computer. Returns frame metadata and an image. Observe before coordinate-based actions and whenever another actor may have changed the desktop. elements:true also lists the desktop app's controls with their exact center (x,y); click those coordinates rather than estimating from the image.",
+    inputSchema: { type: "object", properties: { elements: { type: "boolean" } } },
   },
   {
     name: "computer_act",
     description:
-      "Perform up to 24 ordered desktop actions on this bot's computer and return the resulting screen. Batch only predictable actions; stop before an outcome you need to inspect. Action kinds: click, move, down, up, type, key, scroll, wait, focus (raises the application's window, launching it if absent). Scroll turns the wheel at x,y; put them on the area to scroll, as for a click. Without them it scrolls wherever the pointer is. Direction up, down, left or right; amount 1-20 wheel notches, default 3.",
+      "Perform up to 24 ordered desktop actions on this bot's computer and return the resulting screen. Batch only predictable actions; stop before an outcome you need to inspect. Action kinds: click, move, down, up, type, key, scroll, wait, focus (raises the application's window, launching it if absent). Scroll turns the wheel at x,y; put them on the area to scroll, as for a click. Without them it scrolls wherever the pointer is. Direction up, down, left or right; amount 1-20 wheel notches, default 3. elements:true also lists the desktop app's controls with their exact center (x,y) after the actions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -327,6 +327,7 @@ export const builtinAgentTools: ConnectorTool[] = [
           },
         },
         observe: { type: "boolean" },
+        elements: { type: "boolean" },
         settle_ms: { type: "number" },
       },
       required: ["actions"],

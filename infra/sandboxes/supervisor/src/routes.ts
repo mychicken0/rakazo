@@ -706,6 +706,9 @@ app.post("/computers/:id/browser", async (c) => {
 app.post("/computers/:id/observe", async (c) => {
   const headers = identityHeaders(c);
   try {
+    const { elements } = z
+      .object({ elements: z.boolean().optional() })
+      .parse(await c.req.json().catch(() => ({})));
     const { container, info, layout, browserProfile } = await managedScreen(
       c.req.param("id"),
       headers.botId,
@@ -724,6 +727,7 @@ app.post("/computers/:id/observe", async (c) => {
               browserProfile,
               true,
               0,
+              elements,
             );
             if (!result.observation) throw new Error("computer control returned no observation");
             return result.observation;
@@ -744,6 +748,7 @@ app.post("/computers/:id/actions", async (c) => {
     .object({
       actions: z.array(computerActionSchema).max(24),
       observe: z.boolean().optional(),
+      elements: z.boolean().optional(),
       settleMs: z.number().min(0).max(5_000).optional(),
     })
     .parse(await c.req.json());
@@ -768,6 +773,7 @@ app.post("/computers/:id/actions", async (c) => {
               browserProfile,
               body.observe !== false,
               body.settleMs ?? 0,
+              body.elements,
             )
         : undefined,
     );

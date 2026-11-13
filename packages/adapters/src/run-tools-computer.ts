@@ -117,14 +117,23 @@ function formatObservation(
   screen.unchangedVisualStreak = guard.streak;
   // A browser window's title is the page title, which can echo a signed-in username.
   const activeWindow = observation.activeWindow;
+  // Control names and typed values can echo secrets as well.
+  const elements = observation.elements?.length
+    ? redactSecrets(observation.elements.join("\n"), ctx.secrets).split("\n")
+    : undefined;
   const result = observationToolResult(
-    activeWindow?.title
+    activeWindow?.title || elements
       ? {
           ...observation,
-          activeWindow: {
-            ...activeWindow,
-            title: redactSecrets(activeWindow.title, ctx.secrets),
-          },
+          ...(activeWindow?.title
+            ? {
+                activeWindow: {
+                  ...activeWindow,
+                  title: redactSecrets(activeWindow.title, ctx.secrets),
+                },
+              }
+            : {}),
+          ...(elements ? { elements } : {}),
         }
       : observation,
     note,
@@ -325,13 +334,15 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
 export const computerTools: ToolHandlers = {
   async computer_observe(ctx, call) {
     const { deps, context } = ctx;
-    const { name } = call;
+    const { name, args } = call;
     const blocked = await screenBlocked(ctx);
     if (blocked) return { error: blocked };
     return computerScreenToolResult(async () =>
       formatObservation(
         ctx,
-        await deps.sandbox.observe(await ctx.computer.get("tool", name), context),
+        await deps.sandbox.observe(await ctx.computer.get("tool", name), context, {
+          elements: args.elements === true,
+        }),
       ),
     );
   },
@@ -356,6 +367,7 @@ export const computerTools: ToolHandlers = {
         {
           actions,
           observe: args.observe !== false,
+          ...(args.elements === true ? { elements: true } : {}),
           settleMs: Number(args.settle_ms ?? 350),
         },
         context,

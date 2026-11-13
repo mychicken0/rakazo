@@ -75,6 +75,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-color-emoji \
     locales \
     dbus-x11 \
+    at-spi2-core \
+    libatk-adaptor \
+    python3-gi \
+    gir1.2-atspi-2.0 \
     xdg-desktop-portal \
     xdg-desktop-portal-gtk \
     xdg-utils \
@@ -198,6 +202,7 @@ WORKDIR /home/rakazo
 COPY --chmod=755 start.sh /usr/local/bin/rakazo-computer
 COPY --chmod=644 user-env.sh /usr/local/lib/rakazo-user-env.sh
 COPY --chmod=755 control.py /usr/local/bin/rakazo-computer-control
+COPY --chmod=755 ui_elements.py /usr/local/lib/rakazo-ui-elements.py
 # Tells the supervisor this control service accepts scrolls aimed at a point and sideways
 # scrolls; it sends those to older images through its fallback instead.
 LABEL rakazo.control.aimedScroll="1"
@@ -223,7 +228,7 @@ COPY --chmod=644 mobile-keyboard.js /usr/share/novnc/mobile-keyboard.js
 COPY --chmod=644 rakazo-local-bin.sh /etc/profile.d/rakazo-local-bin.sh
 # Strip CR so shebangs work even if the build context came from a CRLF checkout.
 RUN ldconfig \
-  && sed -i 's/\r$//' /usr/local/bin/rakazo-computer /usr/local/lib/rakazo-user-env.sh /usr/local/bin/rakazo-computer-control /usr/local/bin/rakazo-browser /usr/local/bin/rakazo-focus-or-launch /usr/local/bin/rakazo-page-browser \
+  && sed -i 's/\r$//' /usr/local/bin/rakazo-computer /usr/local/lib/rakazo-user-env.sh /usr/local/bin/rakazo-computer-control /usr/local/lib/rakazo-ui-elements.py /usr/local/bin/rakazo-browser /usr/local/bin/rakazo-focus-or-launch /usr/local/bin/rakazo-page-browser \
     /usr/local/lib/rakazo/page_secrets.py \
     /etc/rakazo/fluxbox/init /etc/rakazo/fluxbox/apps /etc/rakazo/fluxbox/menu \
     /etc/profile.d/rakazo-local-bin.sh

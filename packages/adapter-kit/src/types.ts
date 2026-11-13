@@ -189,11 +189,15 @@ export interface ComputerObservation {
   height: number;
   cursor?: { x: number; y: number };
   activeWindow?: { id: string; title?: string };
+  /** Desktop controls as `[role] "name" (x,y) flags`, with the exact center; only when asked for. */
+  elements?: string[];
+  elementsTruncated?: boolean;
 }
 
 export interface ComputerActionRequest {
   actions: ComputerAction[];
   observe?: boolean;
+  elements?: boolean;
   settleMs?: number;
 }
 

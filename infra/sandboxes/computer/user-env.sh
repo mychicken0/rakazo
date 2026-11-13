@@ -19,3 +19,6 @@ gid=$(id -g) || exit 1
   exit 1
 }
 export LD_PRELOAD=/usr/local/lib/libnss_wrapper.so
+# Qt apps only expose their controls to the accessibility bus when asked.
+export QT_ACCESSIBILITY=1
+export QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1

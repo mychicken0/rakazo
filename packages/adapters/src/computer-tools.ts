@@ -132,6 +132,16 @@ export function observationToolResult(
         type: "text",
         text: `${note}${status}\n${JSON.stringify(details)}`,
       },
+      ...(observation.elements?.length
+        ? [
+            {
+              type: "text" as const,
+              text: `UI elements (x,y = center):\n${observation.elements.join("\n")}${
+                observation.elementsTruncated ? "\n…more elements not shown" : ""
+              }`,
+            },
+          ]
+        : []),
       ...(unchanged
         ? []
         : [

@@ -461,10 +461,17 @@ export class DockerSandboxProvider implements SandboxProvider {
     }
   }
 
-  async observe(computer: ComputerRef, context: AdapterContext): Promise<ComputerObservation> {
+  async observe(
+    computer: ComputerRef,
+    context: AdapterContext,
+    options?: { elements?: boolean },
+  ): Promise<ComputerObservation> {
     const res = await fetch(this.url(`/computers/${computer.id}/observe`), {
       method: "POST",
-      headers: this.headers(context, computer.botId),
+      headers: options?.elements
+        ? { ...this.headers(context, computer.botId), "content-type": "application/json" }
+        : this.headers(context, computer.botId),
+      ...(options?.elements ? { body: JSON.stringify({ elements: true }) } : {}),
       signal: context.signal,
     });
     if (!res.ok)
@@ -478,6 +485,8 @@ export class DockerSandboxProvider implements SandboxProvider {
       height: number;
       cursor?: { x: number; y: number };
       activeWindow?: { id: string; title?: string };
+      elements?: string[];
+      elementsTruncated?: boolean;
     }>(res, context.signal);
     return computerObservation(Uint8Array.from(Buffer.from(body.image, "base64")), {
       mimeType: body.mimeType,
@@ -485,6 +494,8 @@ export class DockerSandboxProvider implements SandboxProvider {
       height: body.height,
       cursor: body.cursor,
       activeWindow: body.activeWindow,
+      ...(body.elements ? { elements: body.elements } : {}),
+      ...(body.elementsTruncated ? { elementsTruncated: true } : {}),
     });
   }
 
@@ -496,6 +507,7 @@ export class DockerSandboxProvider implements SandboxProvider {
       body: JSON.stringify({
         actions,
         observe: request.observe,
+        ...(request.elements ? { elements: true } : {}),
         settleMs: clampRounded(request.settleMs ?? 0, 0, 5_000),
       }),
       signal: context.signal,
@@ -513,6 +525,8 @@ export class DockerSandboxProvider implements SandboxProvider {
         height: number;
         cursor?: { x: number; y: number };
         activeWindow?: { id: string; title?: string };
+        elements?: string[];
+        elementsTruncated?: boolean;
       };
     }>(res, context.signal);
     return {

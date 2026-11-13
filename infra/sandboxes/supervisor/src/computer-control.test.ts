@@ -86,6 +86,23 @@ describe("computer control HTTP boundary", () => {
     ]);
   });
 
+  it("asks the control service for UI elements only when requested", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const origin = await listen((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        bodies.push(JSON.parse(Buffer.concat(chunks).toString()));
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ completed: 0 }));
+      });
+    });
+    const endpoint = { url: `${origin}/v1/desktop`, token };
+    await controlDesktop(endpoint, [], ":1", "/tmp/test-profile", true, 0);
+    await controlDesktop(endpoint, [], ":1", "/tmp/test-profile", true, 0, true);
+    expect(bodies.map((body) => body.elements)).toEqual([undefined, true]);
+  });
+
   it("sends token-authenticated actions to the inspected host mapping without a container IP", async () => {
     const authorizations: Array<string | undefined> = [];
     const origin = await listen((req, res) => {

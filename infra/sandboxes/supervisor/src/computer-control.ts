@@ -39,6 +39,7 @@ export async function controlDesktop(
   browserProfile: string,
   observe: boolean,
   settleMs: number,
+  elements = false,
 ) {
   const signal = AbortSignal.timeout(computerControlTimeoutMs(actions, settleMs));
   let response: Response;
@@ -57,6 +58,7 @@ export async function controlDesktop(
         display,
         observe,
         settleMs,
+        ...(elements ? { elements } : {}),
       }),
       signal,
     });
