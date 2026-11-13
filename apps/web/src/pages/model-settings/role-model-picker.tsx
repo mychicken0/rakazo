@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@rakazo/ui-web";
+import { ChevronRight } from "lucide-react";
 import type { ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ModelCatalogEntry } from "../../lib/model-auth";
@@ -23,6 +24,9 @@ export type ConnectableProvider = { id: string; name: string; baseUrl?: string }
 
 /** A model on one connection; `providerName` is that connection's name. */
 export type RoleModelOption = ModelCatalogEntry & { credentialId?: string };
+
+/** Past this many models, each connection's list folds away until it is opened. */
+const FOLD_AFTER = 12;
 
 const optionValue = (option: RoleModelOption) =>
   `${option.provider}:${option.id}:${option.credentialId ?? ""}`;
@@ -81,10 +85,23 @@ export function RoleModelPicker({
     return [...grouped];
   }, [visible]);
   const needle = query.trim();
+  // Long lists fold by connection; a search shows every match unfolded.
+  const foldable = !needle && groups.length > 1 && options.length > FOLD_AFTER;
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
+  const isOpen = (name: string) => !foldable || unfolded.has(name);
+  const toggle = (name: string) =>
+    setUnfolded((current) => {
+      const next = new Set(current);
+      if (!next.delete(name)) next.add(name);
+      return next;
+    });
   const matchingProviders = visible.flatMap((row) => (row.provider ? [row.provider] : []));
   const values = [
     ...(defaultOption && !needle ? ["default"] : []),
-    ...groups.flatMap(([, entries]) => entries.map(optionValue)),
+    ...groups.flatMap(([name, entries]) => [
+      ...(foldable ? [`group:${name}`] : []),
+      ...(isOpen(name) ? entries.map(optionValue) : []),
+    ]),
     ...matchingProviders.map((provider) => `connect:${provider.id}:${provider.baseUrl ?? ""}`),
   ];
   // The first row is active whenever the list changes, so Enter always picks something.
@@ -118,6 +135,7 @@ export function RoleModelPicker({
       onOpenChange={(next) => {
         if (!next) return close();
         setQuery("");
+        setUnfolded(new Set());
         setOpen(true);
       }}
     >
@@ -177,8 +195,25 @@ export function RoleModelPicker({
               </CommandGroup>
             ) : null}
             {groups.map(([name, entries]) => (
-              <CommandGroup key={name} heading={name}>
-                {entries.map((option) => (
+              <CommandGroup key={name} heading={foldable ? undefined : name}>
+                {foldable ? (
+                  <CommandItem
+                    value={`group:${name}`}
+                    aria-expanded={isOpen(name)}
+                    onSelect={() => toggle(name)}
+                    className="text-muted-foreground"
+                  >
+                    <ChevronRight
+                      aria-hidden
+                      className={`size-4 shrink-0 transition-transform motion-reduce:transition-none rtl:rotate-180 ${isOpen(name) ? "rotate-90 rtl:rotate-90" : ""}`}
+                    />
+                    <span className="min-w-0 truncate">{name}</span>
+                    <CommandShortcut className="text-body-sm tracking-normal">
+                      {entries.length}
+                    </CommandShortcut>
+                  </CommandItem>
+                ) : null}
+                {(isOpen(name) ? entries : []).map((option) => (
                   <CommandItem
                     key={optionValue(option)}
                     value={optionValue(option)}

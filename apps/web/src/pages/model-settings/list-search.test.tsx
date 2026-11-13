@@ -110,6 +110,38 @@ it("searches role models and providers together, including provider names and mo
   expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "café-model" }));
 });
 
+it("folds a long model list by connection until a group is opened or searched", async () => {
+  const model = (provider: string, index: number) => ({
+    id: `${provider}-${index}`,
+    label: `${provider} model ${index}`,
+    provider: provider.toLowerCase(),
+    providerName: provider,
+    billing: "API key",
+  });
+  await act(async () =>
+    root.render(
+      <RoleModelPicker
+        trigger={<button type="button">Choose</button>}
+        label="Choose"
+        options={[
+          ...Array.from({ length: 8 }, (_, i) => model("Alpha", i)),
+          ...Array.from({ length: 8 }, (_, i) => model("Beta", i)),
+        ]}
+        providers={[]}
+        onPick={() => {}}
+        onConnect={() => {}}
+      />,
+    ),
+  );
+  await click("Choose");
+  expect(options()).toEqual(["Alpha8", "Beta8"]);
+  await act(async () => document.querySelector<HTMLElement>("[cmdk-item]")!.click());
+  expect(options()).toHaveLength(10);
+  expect(options()[1]).toBe("Alpha model 0");
+  await type("Beta model 3");
+  expect(options()).toEqual(["Beta model 3"]);
+});
+
 it("searches Onboarding's discovered models and keeps manual model entry available", async () => {
   const onChange = vi.fn();
   await act(async () =>
