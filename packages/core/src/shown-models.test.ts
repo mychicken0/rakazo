@@ -20,9 +20,13 @@ describe("visibleModelEntries", () => {
     ]);
   });
 
-  it("hides models no connection of the provider lists, never decisions", () => {
+  it("hides models no connection of the provider lists, decision models included", () => {
     const shown = visibleModelEntries(entries, [{ provider: "openrouter", shownModelIds: ["a"] }]);
-    expect(ids(shown)).toEqual(["a", "d", "c"]);
+    expect(ids(shown)).toEqual(["a", "c"]);
+    const withDecision = visibleModelEntries(entries, [
+      { provider: "openrouter", shownModelIds: ["a", "d"] },
+    ]);
+    expect(ids(withDecision)).toEqual(["a", "d", "c"]);
   });
 
   it("shows all while any connection of the provider has no list", () => {
@@ -38,7 +42,7 @@ describe("visibleModelEntries", () => {
       { provider: "openrouter", shownModelIds: ["a"] },
       { provider: "openrouter", shownModelIds: ["b"] },
     ];
-    expect(ids(visibleModelEntries(entries, credentials))).toEqual(["a", "b", "d", "c"]);
+    expect(ids(visibleModelEntries(entries, credentials))).toEqual(["a", "b", "c"]);
   });
 
   it("keeps the selected model", () => {
@@ -46,6 +50,6 @@ describe("visibleModelEntries", () => {
       provider: "openrouter",
       modelId: "b",
     });
-    expect(ids(shown)).toEqual(["a", "b", "d", "c"]);
+    expect(ids(shown)).toEqual(["a", "b", "c"]);
   });
 });

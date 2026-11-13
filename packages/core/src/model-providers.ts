@@ -487,8 +487,8 @@ type ShownModelsRef = { provider: string; shownModelIds?: readonly string[] };
 
 /**
  * Hides models a member left out of a provider's "shown" list. A provider hides only when it
- * has connections and every one of them names a list that omits the model. Decision-protocol
- * entries and the `selected` model always stay.
+ * has connections and every one of them names a list that omits the model. The `selected`
+ * model always stays.
  */
 export function visibleModelEntries<
   T extends { provider?: string; protocol?: string } & ({ id: string } | { modelId?: string }),
@@ -507,7 +507,7 @@ export function visibleModelEntries<
     else lists.set(provider, [...(known ?? []), shown]);
   }
   return entries.filter((entry) => {
-    if (entry.protocol === "decisions" || !entry.provider) return true;
+    if (!entry.provider) return true;
     const provider = canonicalPiProviderId(entry.provider);
     const shownLists = lists.get(provider);
     if (!shownLists) return true;

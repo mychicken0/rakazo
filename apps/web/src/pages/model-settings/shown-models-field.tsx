@@ -14,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@rakazo/ui-web";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSpaceRpc } from "../../lib/space-rpc";
@@ -33,16 +34,29 @@ export function ShownModelsField({
   const rpc = useSpaceRpc();
   const { t } = useLingui();
   const provider = canonicalPiProviderId(credential.provider);
+  // Decision models run only as the approval checker, so they come from that role's list.
+  const { data: approvalCatalog } = useQuery({
+    queryKey: ["shown-models-approval", provider],
+    queryFn: () => rpc.models.forRole({ role: "approval" }),
+    staleTime: 60_000,
+  });
   const models = useMemo(
-    () =>
-      catalog.filter(
+    () => [
+      ...catalog.filter(
         (entry) =>
           canonicalPiProviderId(entry.provider) === provider &&
           entry.protocol !== "decisions" &&
           !entry.placeholder &&
           !entry.managed,
       ),
-    [catalog, provider],
+      ...(approvalCatalog ?? [])
+        .filter(
+          (entry) =>
+            entry.protocol === "decisions" && canonicalPiProviderId(entry.provider) === provider,
+        )
+        .map((entry) => ({ ...entry, label: `${entry.label} · ${t`Approval`}` })),
+    ],
+    [catalog, provider, approvalCatalog, t],
   );
   const saved = credential.shownModelIds;
   const [shown, setShown] = useState<string[]>(saved ?? []);
