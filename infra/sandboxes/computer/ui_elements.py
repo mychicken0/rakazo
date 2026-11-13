@@ -52,10 +52,14 @@ def main():
             raise Full
         elements.append(line)
 
-    def visible_center(node):
+    def showing(node):
         states = node.get_state_set()
-        if not (states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)):
+        return states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.VISIBLE)
+
+    def visible_center(node):
+        if not showing(node):
             return None
+        states = node.get_state_set()
         box = node.get_extents(Atspi.CoordType.SCREEN)
         if box.width <= 0 or box.height <= 0:
             return None
@@ -99,11 +103,13 @@ def main():
         if time.monotonic() > deadline or depth > MAX_DEPTH:
             truncated = True
             return
-        center = visible_center(node)
-        if center is None:
+        # A hidden subtree is skipped; a showing container without its own on-screen box
+        # (a zero-size panel) is still searched, since its children can have one.
+        if not showing(node):
             return
+        center = visible_center(node)
         role = node.get_role_name()
-        if role in ACTION_ROLES or role in LABEL_ROLES:
+        if center is not None and (role in ACTION_ROLES or role in LABEL_ROLES):
             line = describe(node, role, *center)
             if line:
                 add(line)
