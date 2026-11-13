@@ -12,3 +12,10 @@ if [ -n "${HOME:-}" ]; then
   export PATH
   unset rakazo_local_bin
 fi
+
+# Apps started from the agent shell join the desktop session's bus, so their controls reach the
+# accessibility tree the computer tools read. Qt and Chrome expose controls only when asked.
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -r /tmp/rakazo/dbus-session ]; then
+  . /tmp/rakazo/dbus-session
+fi
+export QT_ACCESSIBILITY=1 QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1 ACCESSIBILITY_ENABLED=1

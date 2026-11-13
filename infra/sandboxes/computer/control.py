@@ -357,12 +357,22 @@ def capture(display):
     }
 
 
+def session_bus_env():
+    """The desktop session's bus, which start.sh records after this server has started."""
+    try:
+        with open("/tmp/rakazo/dbus-session") as handle:
+            match = re.search(r"DBUS_SESSION_BUS_ADDRESS=(\S+)", handle.read())
+    except OSError:
+        return {}
+    return {"DBUS_SESSION_BUS_ADDRESS": match.group(1)} if match else {}
+
+
 def read_ui_elements(display):
     """Controls of the desktop apps as observation fields; empty on any failure."""
     try:
         result = subprocess.run(
             ["python3", "-I", UI_ELEMENTS_READER],
-            env=child_env(display),
+            env={**child_env(display), **session_bus_env()},
             capture_output=True,
             text=True,
             timeout=UI_ELEMENTS_TIMEOUT_SEC,
