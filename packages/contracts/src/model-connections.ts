@@ -109,6 +109,8 @@ export const ModelCredentialSchema = z.object({
   thinkingLevels: z.array(ThinkingLevelSchema).optional(),
   /** Openai-compatible only; always contains `modelId` when set. */
   enabledModelIds: z.array(z.string()).optional(),
+  /** Models the pickers list for this connection; absent shows all. Display only. */
+  shownModelIds: z.array(z.string()).optional(),
   /** The connection's enabled models that accept images, where it declares them per model. */
   visionModelIds: z.array(z.string()).optional(),
   /** Stored secret kind. Absent when the secret could not be read. */

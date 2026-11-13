@@ -482,3 +482,43 @@ export const modelChoiceSearchText = (choice: ChatModelChoice) => [
   choice.provider,
   choice.provider ? choice.providerLabel : undefined,
 ];
+
+type ShownModelsRef = { provider: string; shownModelIds?: readonly string[] };
+
+/**
+ * Hides models a member left out of a provider's "shown" list. A provider hides only when it
+ * has connections and every one of them names a list that omits the model. Decision-protocol
+ * entries and the `selected` model always stay.
+ */
+export function visibleModelEntries<
+  T extends { provider?: string; protocol?: string } & ({ id: string } | { modelId?: string }),
+>(
+  entries: readonly T[],
+  credentials: readonly ShownModelsRef[],
+  selected?: { provider: string; modelId: string } | null,
+): T[] {
+  const lists = new Map<string, (readonly string[])[] | null>();
+  for (const credential of credentials) {
+    const provider = canonicalPiProviderId(credential.provider);
+    const shown = credential.shownModelIds?.length ? credential.shownModelIds : null;
+    const known = lists.get(provider);
+    if (known === null) continue;
+    if (!shown) lists.set(provider, null);
+    else lists.set(provider, [...(known ?? []), shown]);
+  }
+  return entries.filter((entry) => {
+    if (entry.protocol === "decisions" || !entry.provider) return true;
+    const provider = canonicalPiProviderId(entry.provider);
+    const shownLists = lists.get(provider);
+    if (!shownLists) return true;
+    const id = "id" in entry ? entry.id : entry.modelId;
+    if (!id) return true;
+    if (shownLists.some((list) => list.includes(id))) return true;
+    return (
+      selected !== undefined &&
+      selected !== null &&
+      canonicalPiProviderId(selected.provider) === provider &&
+      selected.modelId === id
+    );
+  });
+}

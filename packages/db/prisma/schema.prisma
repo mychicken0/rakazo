@@ -850,6 +850,8 @@ model UserModelCredential {
   label       String
   secretId    String
   supportsImages Boolean              @default(false)
+  /// Models the pickers list for this connection; empty shows all. Display only.
+  shownModelIds String[]              @default([])
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
   preferences SpaceModelPreference[]

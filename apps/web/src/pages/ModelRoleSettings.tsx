@@ -14,7 +14,7 @@ import {
   MAX_MODEL_BACKUPS,
   modelRoleChoiceKey,
 } from "@rakazo/contracts";
-import { createModelRoleSettings, modelRoleListPatch } from "@rakazo/core";
+import { createModelRoleSettings, modelRoleListPatch, visibleModelEntries } from "@rakazo/core";
 import {
   Button,
   DropdownMenu,
@@ -196,6 +196,13 @@ export function ModelRoleSettings({
     providerName: choice.credentialId ? choice.connectionName : providerLabel(choice.provider),
     ...(choice.credentialId ? { credentialId: choice.credentialId } : {}),
   }));
+  // The pickers list only the models a member chose to show; a slot keeps its own model.
+  const shownOptions = (selected?: ModelBackupChoice) =>
+    visibleModelEntries(
+      options,
+      credentials,
+      selected ? { provider: selected.provider, modelId: selected.modelId } : null,
+    );
   // A pinned row runs on its connection; others on the provider's newest.
   const connectionFor = (choice: ModelRoleChoice) =>
     choice.credentialId
@@ -309,7 +316,7 @@ export function ModelRoleSettings({
                 deployment ? providerName(deployment) : undefined,
               )}
               label={t`Change ${title}`}
-              options={options}
+              options={shownOptions()}
               providers={providers}
               disabled={pickerLocked}
               onPick={(option) => (option ? void setPrimary(choiceOf(option)) : null)}
@@ -376,7 +383,7 @@ export function ModelRoleSettings({
               <RoleModelPicker
                 trigger={pickerTrigger(name, providerName(choice))}
                 label={t`Change ${name}`}
-                options={options}
+                options={shownOptions(choice)}
                 defaultOption={
                   isPrimary && role !== "main" && deployment ? modelLabel(deployment) : undefined
                 }
@@ -489,7 +496,7 @@ export function ModelRoleSettings({
                 </button>
               }
               label={t`Add fallback`}
-              options={options.filter((option) =>
+              options={shownOptions().filter((option) =>
                 rows.every((row) => !sameChoice(row, choiceOf(option))),
               )}
               providers={providers}

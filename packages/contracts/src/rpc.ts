@@ -584,6 +584,15 @@ export const appContract = {
     rename: oc
       .input(z.object({ credentialId: Id, label: ModelConnectionLabelSchema }))
       .output(z.object({ ok: z.literal(true) })),
+    /** Which of the connection's models the pickers list; empty lists all. Display only. */
+    setShownModels: oc
+      .input(
+        z.object({
+          credentialId: Id,
+          modelIds: z.array(z.string().trim().min(1).max(512)).max(1000),
+        }),
+      )
+      .output(z.object({ ok: z.literal(true) })),
     /** Removes one connection, or every connection of the provider when older apps omit it. */
     disconnect: oc
       .input(z.object({ provider: z.string().trim().min(1), credentialId: Id.optional() }))

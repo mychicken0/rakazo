@@ -16,6 +16,7 @@ import {
   modelOptionKey,
   parseModelOptionKey,
   resolveSelectableModelId,
+  visibleModelEntries,
 } from "@rakazo/core";
 import { Button, Input, Tabs, TabsContent, TabsList, TabsTrigger } from "@rakazo/ui-web";
 import { useQuery } from "@tanstack/react-query";
@@ -272,7 +273,7 @@ export function BotSettings({
     ? catalogEntry(catalog, me.defaultProvider, me.defaultModel)
     : undefined;
   const modelChoices = chatModelChoices(
-    connectedOptions,
+    visibleModelEntries(connectedOptions, credentials, selectedModel),
     selectedModelKey,
     t`Space default`,
     defaultEntry?.images,

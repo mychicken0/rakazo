@@ -124,6 +124,7 @@ export function modelsRoutes(ctx: RouterContext) {
                 : listed;
               return {
                 ...shown,
+                ...(row.shownModelIds?.length ? { shownModelIds: row.shownModelIds } : {}),
                 ...(shown.enabledModelIds
                   ? {
                       enabledModelIds: [
@@ -597,6 +598,15 @@ export function modelsRoutes(ctx: RouterContext) {
           data: { label: input.label },
         });
         if (renamed.count === 0)
+          throw new ORPCError("NOT_FOUND", { message: "Connection not found" });
+        return { ok: true as const };
+      }),
+      setShownModels: authed.models.setShownModels.handler(async ({ context, input }) => {
+        const updated = await deps.prisma.userModelCredential.updateMany({
+          where: { id: input.credentialId, userId: context.actor.userId },
+          data: { shownModelIds: [...new Set(input.modelIds)] },
+        });
+        if (updated.count === 0)
           throw new ORPCError("NOT_FOUND", { message: "Connection not found" });
         return { ok: true as const };
       }),

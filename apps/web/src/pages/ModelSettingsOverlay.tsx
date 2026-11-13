@@ -30,6 +30,7 @@ import { CompatibleModelFields } from "./model-settings/compatible-model-fields"
 import { CompatibleKeyControls, ConnectionControls } from "./model-settings/connection-controls";
 import { ConnectionNameField, ProvidersSection } from "./model-settings/providers-section";
 import type { ConnectableProvider } from "./model-settings/role-model-picker";
+import { ShownModelsField } from "./model-settings/shown-models-field";
 import { SpaceBotsModelButton } from "./model-settings/space-bots-model";
 import { useModelSettings } from "./model-settings/use-model-settings";
 
@@ -283,6 +284,14 @@ export function ModelSettingsOverlay({
             credential={credential}
             // A rename touches only the label; keep any unsaved form fields.
             onRenamed={() => void refresh({ keepForm: true })}
+          />
+        ) : null}
+        {connected && credential ? (
+          <ShownModelsField
+            key={credential.id}
+            credential={credential}
+            catalog={catalog}
+            onSaved={() => void refresh({ keepForm: true })}
           />
         ) : null}
         {connection}
