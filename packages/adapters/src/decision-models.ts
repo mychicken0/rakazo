@@ -3,6 +3,12 @@ import type { ModelCatalogEntry } from "@rakazo/contracts";
 /** Protocol/pricing belongs to the adapter catalog, never approval policy. */
 const models = [
   { provider: "openrouter", id: "typesafe/jev-1.14", label: "Jev 1.14", inputUsdPerMillion: 0.042 },
+  {
+    provider: "openrouter",
+    id: "perplexity/pplx-decider-flash-v1.3:free",
+    label: "Decider Flash 1.3 (free)",
+    inputUsdPerMillion: 0,
+  },
 ];
 export function decisionModel(provider: string, id: string) {
   return models.find((model) => model.provider === provider && model.id === id);
